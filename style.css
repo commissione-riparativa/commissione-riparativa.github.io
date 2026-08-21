@@ -181,15 +181,21 @@ tbody tr:hover td{background:#fafaf8}
 
 
 
+
+/* V19 — Revisione mirata della sezione Incontri:
+   meno densità, più separazione tra card e gerarchia più chiara */
+.incontri-list-stack{display:grid;gap:18px}
+.incontri-list-stack + .past-toggle{margin-top:2px}
+.incontri-list-stack.past{margin-top:14px}
 /* V17 — Sezione Incontri riportata alla leggerezza visiva della V14 */
 .inc-card{
-  position:relative;background:#fff;border:1.5px solid #ebebea;border-radius:14px;
-  padding:1.05rem 1.1rem;margin-bottom:.75rem;border-left:3.5px solid #d0d0ce;
-  box-shadow:none;transition:box-shadow .2s,transform .18s;
+  position:relative;background:#fff;border:1.5px solid #e9ece7;border-radius:16px;
+  padding:1.18rem 1.18rem 1.08rem;margin-bottom:0;border-left:4px solid #d0d0ce;
+  box-shadow:0 2px 10px rgba(21,27,24,.03);transition:box-shadow .18s ease,border-color .18s ease;
 }
 .inc-card::before{display:none!important}
 .inc-card.futuro{border-left-color:#1D9E75}.inc-card.oggi{border-left-color:#f59e0b}.inc-card.passato{border-left-color:#d0d0ce;opacity:.72}
-.inc-card:hover{box-shadow:0 3px 14px rgba(0,0,0,.055);transform:translateY(-1px)}.inc-card.passato:hover{transform:none;opacity:.85}
+.inc-card:hover{box-shadow:0 7px 20px rgba(21,27,24,.055)}.inc-card.passato:hover{opacity:.85}
 
 .inc-date-heading{
   display:grid!important;grid-template-columns:64px minmax(0,1fr) auto;align-items:center!important;
@@ -204,11 +210,11 @@ tbody tr:hover td{background:#fafaf8}
 .inc-date-tags{display:flex!important;width:auto!important;margin:0!important;align-items:center;justify-content:flex-end;gap:5px}
 .tag-oggi,.tag-passato{min-height:26px;padding:4px 9px;border-radius:999px;line-height:1;white-space:nowrap;font-size:10.5px;font-weight:600}.tag-oggi{background:#e5f6ef;color:#10654c}.tag-passato{background:#f3f4f6;color:#777}
 
-.inc-meta-row{display:flex;align-items:center;flex-wrap:wrap;gap:5px 7px;margin:1px 0 0 0;color:#666;font-size:13px;line-height:1.45}
+.inc-meta-row{display:flex;align-items:center;flex-wrap:wrap;gap:5px 7px;margin:3px 0 0 0;color:#666;font-size:13px;line-height:1.5}
 .inc-meta-item{display:inline-flex;align-items:center;gap:5px;min-width:0}.inc-meta-item strong{color:#444;font-weight:600}.inc-meta-item .icon{color:#777772;margin:0}.inc-meta-separator{color:#b0b0ab}.inc-meta-place{overflow-wrap:anywhere}
 
 .inc-linked{
-  margin:11px 0 0 0;padding:10px 11px;border:1px solid #e5e5e1;border-radius:10px;background:#fbfbf9;
+  margin:0;padding:10px 11px;border:1px solid #ecefe8;border-radius:11px;background:#fbfcfa;
   display:grid;grid-template-columns:34px minmax(0,1fr);gap:11px;align-items:center!important;color:#666;
 }
 .inc-linked-icon{width:34px;height:34px;border-radius:9px;background:#eef7f4;color:#17785c;display:grid;place-items:center}
@@ -217,28 +223,94 @@ tbody tr:hover td{background:#fafaf8}
 .inc-linked-main{margin:0;display:inline-flex;align-items:center;padding:3px 7px;border-radius:7px;background:#eef5f2;color:#24634f;font-size:11.5px;font-weight:650;letter-spacing:.025em;white-space:nowrap}
 .inc-linked-meta{margin:0;color:#666660;font-size:12px;font-weight:500}
 
-.inc-response-row{margin-top:12px;padding-top:11px;border-top:1px solid #f0f0ee;display:flex;align-items:center;justify-content:space-between;gap:14px}
+.inc-response-row{display:flex;align-items:center;justify-content:space-between;gap:14px}
 .inc-response-label{font-size:11px;color:#888;font-weight:600;text-transform:uppercase;letter-spacing:.035em;line-height:1.2}.inc-response-state{margin-top:2px;font-size:12.5px;color:#5e5e5a;font-weight:500;line-height:1.35}
 .inc-response-buttons{display:flex;gap:6px;align-items:center;flex-shrink:0}.btn-yes,.btn-no{font-size:12.5px;padding:7px 13px;border-radius:8px;border:1.5px solid #e8e8e6;background:#fff;color:#666;font-weight:500;min-width:auto}
 .btn-yes.active{background:#d1fae5;color:#065f46;border-color:#6ee7b7;font-weight:600}.btn-no.active{background:#fee2e2;color:#dc2626;border-color:#fca5a5;font-weight:600}
 
-.inc-attendance{margin-top:12px}.progress-bar{height:5px;background:#f0f0ee;border-radius:999px;overflow:hidden}.progress-fill{height:5px;background:#1D9E75;border-radius:999px}
+.inc-attendance{margin-top:0}.progress-bar{height:6px;background:#edf0eb;border-radius:999px;overflow:hidden}.progress-fill{height:6px;background:#1D9E75;border-radius:999px}
 .progress-label{font-size:12px;color:#666;margin-top:6px;font-weight:600;line-height:1.35}.attendance-breakdown{display:flex;flex-wrap:wrap;align-items:center;gap:5px 10px;margin-top:4px;font-size:11px;color:#999;line-height:1.35}
 .attendance-breakdown .yes{color:#0b7a58}.attendance-breakdown .no{color:#b43a32}
 .availability-trigger{width:100%;margin-top:10px;min-height:40px;display:flex;justify-content:space-between;align-items:center;gap:8px;text-align:left;background:#f8f8f6;border-color:#e6e6e2;color:#444;border-radius:10px;padding-left:12px;padding-right:12px}
 .availability-trigger:hover{background:#f3f3f0}.availability-trigger .availability-count{color:#999;font-size:11.5px;font-weight:500}
 
-.disp-panel{margin-top:10px;padding:.7rem 1rem;border-radius:10px;background:#f9f9f7;border:0}.inc-admin-actions{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap;margin-top:8px;padding-top:0;border-top:0}
+
+.inc-section{margin-top:14px}
+.inc-section + .inc-section{margin-top:12px}
+.inc-section-surface{
+  padding:13px 14px;
+  border:1px solid #eef1eb;
+  border-radius:13px;
+  background:#fcfcfb;
+}
+.inc-section-header{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  margin-bottom:9px;
+}
+.inc-section-kicker{
+  font-size:10.5px;
+  color:#7a7d76;
+  font-weight:700;
+  text-transform:uppercase;
+  letter-spacing:.05em;
+}
+.inc-section-linked .inc-linked-label{font-size:10px}
+.inc-section-linked .inc-linked-main{background:#eff5f1}
+.inc-linked-compact-note{
+  margin-top:4px;
+  font-size:12px;
+  color:#7a7d76;
+  line-height:1.4;
+}
+.inc-summary-top{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:10px;
+  margin-bottom:8px;
+}
+.inc-summary-text{min-width:0}
+.inc-summary-text .progress-label{margin-top:2px}
+.inc-summary-side{
+  flex:0 0 auto;
+  min-width:fit-content;
+  padding:6px 8px;
+  border-radius:10px;
+  background:#f3f7f4;
+  color:#24634f;
+  font-size:11px;
+  font-weight:600;
+  line-height:1.25;
+  text-align:right;
+}
+.inc-card.passato .inc-section-surface{background:#fbfbfa}
+.inc-card.passato .availability-trigger{background:#fafaf8}
+
+
+.disp-panel{margin-top:10px;padding:.9rem 1rem;border-radius:11px;background:#f9faf8;border:1px solid #edf0ea}.inc-admin-actions{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:14px;padding-top:0;border-top:0}
 .inc-admin-actions .btn-small,.inc-admin-actions .btn-danger{min-height:34px;padding:6px 10px;font-size:12px;font-weight:500}
 
 @media(max-width:700px){
-  .inc-card{padding:.95rem;border-radius:14px}
+  .incontri-list-stack{gap:16px}
+  .inc-card{padding:1rem;border-radius:15px}
   .inc-date-heading{grid-template-columns:60px minmax(0,1fr) auto;gap:10px;min-height:60px}
   .inc-date-tile{width:60px;min-width:60px;height:60px}.inc-date-day{font-size:24px}.inc-date-weekday-out{font-size:14.5px}.inc-date-year{font-size:12px}
-  .inc-meta-row{margin-left:0!important;padding-left:0!important;gap:5px 6px;font-size:13px}.inc-linked{margin-left:0!important;margin-top:11px;padding:10px}
-  .inc-response-row{grid-template-columns:none!important;flex-direction:column;align-items:stretch;gap:9px;padding-top:12px}.inc-response-buttons{display:grid;grid-template-columns:1fr 1fr;gap:8px;width:100%}.inc-response-buttons .btn-yes,.inc-response-buttons .btn-no{width:100%;min-height:50px}
-  .inc-attendance{margin-top:13px}.availability-trigger{min-height:48px;flex-direction:column;align-items:flex-start;justify-content:center;gap:2px}.availability-trigger .availability-count{display:block!important;font-size:11px;line-height:1.25}
-  .inc-admin-actions{display:flex;justify-content:stretch}.inc-admin-actions .btn-small,.inc-admin-actions .btn-danger{flex:1;width:auto;min-height:40px}
+  .inc-meta-row{margin-left:0!important;padding-left:0!important;gap:5px 6px;font-size:13px}
+  .inc-section{margin-top:12px}
+  .inc-section-surface{padding:12px}
+  .inc-linked{margin-left:0!important;padding:10px}
+  .inc-response-row{grid-template-columns:none!important;flex-direction:column;align-items:stretch;gap:10px}
+  .inc-response-buttons{display:grid;grid-template-columns:1fr 1fr;gap:8px;width:100%}
+  .inc-response-buttons .btn-yes,.inc-response-buttons .btn-no{width:100%;min-height:50px}
+  .inc-summary-top{flex-direction:column;gap:8px}
+  .inc-summary-side{text-align:left}
+  .availability-trigger{min-height:48px;flex-direction:column;align-items:flex-start;justify-content:center;gap:2px}
+  .availability-trigger .availability-count{display:block!important;font-size:11px;line-height:1.25}
+  .inc-admin-actions{display:flex;justify-content:stretch}
+  .inc-admin-actions .btn-small,.inc-admin-actions .btn-danger{flex:1;width:auto;min-height:40px}
 }
 @media(max-width:390px){.inc-date-heading{grid-template-columns:58px minmax(0,1fr) auto;gap:9px}.inc-date-tile{width:58px;min-width:58px;height:58px}.inc-date-tags .tag-oggi,.inc-date-tags .tag-passato{font-size:10px;padding:4px 7px}}
 

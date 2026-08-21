@@ -59,3 +59,12 @@ La PWA memorizza in cache solo i file dell'interfaccia. Le chiamate al backend G
 La PWA usa ora la bilancia verde con foglie come icona principale.
 I file dell'icona sono versionati (`v2`) e la cache del service worker
 è stata aggiornata per facilitare la sostituzione dell'icona precedente.
+
+
+## Revisione Incontri v19
+
+Questa revisione alleggerisce la sezione Incontri senza cambiare il backend:
+- più spazio tra le card;
+- disponibilità personale e disponibilità del gruppo separate in blocchi distinti;
+- segnalazione collegata resa più discreta;
+- incontri futuri e conclusi separati in stack distinti.
