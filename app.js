@@ -2,7 +2,7 @@
 function registerServiceWorker(){
   if(!('serviceWorker' in navigator))return;
   window.addEventListener('load',()=>{
-    navigator.serviceWorker.register('./sw.js?v=22').catch(err=>{
+    navigator.serviceWorker.register('./sw.js?v=23').catch(err=>{
       console.warn('Service worker non registrato:',err);
     });
   },{once:true});
@@ -102,58 +102,72 @@ function isToday(inc){const d=meetingDate(inc);if(!d)return false;const t=new Da
 function parseMeetingSummary(v){const p=String(v||'').split(' · ');return{date:(p[0]||'').replace(/^Segnalazione\s+(del\s+)?/i,''),component:p[1]||'',contact:p.slice(2).join(' · ')||''}}
 function segTimestamp(v){const d=parseDate(v);return d?d.getTime():0}
 function normalizeCompare(v){return String(v||'').trim().toLowerCase().replace(/\s+/g,' ')}
-function linkedMeetingForSeg(seg){
-  if(!seg)return null;
+function linkedMeetingsForSeg(seg){
+  if(!seg)return [];
   const id=String(seg.ID||'').trim();
-  if(id){
-    const exact=incontri.find(inc=>String(inc.segnalazioneId||'').trim()===id);
-    if(exact)return exact;
+  const found=[];
+  const seen=new Set();
+
+  for(const inc of incontri){
+    const incId=String(inc.id||'');
+    const linkedId=String(inc.segnalazioneId||'').trim();
+
+    let match=false;
+    if(id&&linkedId===id){
+      match=true;
+    }else if(!linkedId){
+      // Compatibilità con incontri storici creati prima dell'introduzione di "Segnalazione ID".
+      const targetDate=normalizeCompare(dateLong(seg.Data));
+      const targetComponent=normalizeCompare(seg.Componente);
+      const targetContact=normalizeCompare(seg.Recapito);
+      const parsed=parseMeetingSummary(inc.segnalazione||'');
+      match=normalizeCompare(dateLong(parsed.date))===targetDate
+        && normalizeCompare(parsed.component)===targetComponent
+        && normalizeCompare(parsed.contact)===targetContact;
+    }
+
+    if(match&&!seen.has(incId)){
+      seen.add(incId);
+      found.push(inc);
+    }
   }
-  // Compatibilità con incontri storici creati prima dell'introduzione di "Segnalazione ID".
-  const targetDate=normalizeCompare(dateLong(seg.Data));
-  const targetComponent=normalizeCompare(seg.Componente);
-  const targetContact=normalizeCompare(seg.Recapito);
-  return incontri.find(inc=>{
-    if(String(inc.segnalazioneId||'').trim())return false;
-    const parsed=parseMeetingSummary(inc.segnalazione||'');
-    return normalizeCompare(dateLong(parsed.date))===targetDate
-      && normalizeCompare(parsed.component)===targetComponent
-      && normalizeCompare(parsed.contact)===targetContact;
-  })||null;
+  return found.sort((a,b)=>meetingTimestamp(a)-meetingTimestamp(b));
 }
+function linkedMeetingForSeg(seg){return linkedMeetingsForSeg(seg)[0]||null}
 function deleteSegAction(r){
   if(!isCoord||!r?.ID)return '';
   return `<button class="seg-delete-action" type="button" data-action="delete-seg" data-seg-id="${escapeAttr(r.ID)}">${icon('trash','icon icon-sm')}<span>Elimina</span></button>`;
 }
 function quickMeetingAction(r){
   if(!isCoord||!r?.ID)return '';
-  if((r.Stato||'Aperta')==='Chiusa')return '';
-  const linked=incontriLoadedOnce?linkedMeetingForSeg(r):null;
-  if(linked){
-    const d=meetingDate(linked);
-    const when=d?`${String(d.getDate()).padStart(2,'0')} ${MONTHS[d.getMonth()].slice(0,3).toUpperCase()}`:'';
-    return `<span class="seg-meeting-linked">${icon('calendar','icon icon-sm')}<span>Incontro collegato${when?` · ${escapeHtml(when)}`:''}</span></span>`;
+  const closed=(r.Stato||'Aperta')==='Chiusa';
+  const linked=incontriLoadedOnce?linkedMeetingsForSeg(r):[];
+  const count=linked.length;
+
+  if(closed){
+    return count
+      ?`<span class="seg-meeting-state">${icon('calendar','icon icon-sm')}<span>${count} ${count===1?'incontro collegato':'incontri collegati'}</span></span>`
+      :'';
   }
+
+  if(count){
+    return `<span class="seg-meeting-state">${icon('calendar','icon icon-sm')}<span>${count} ${count===1?'incontro collegato':'incontri collegati'}</span></span><button class="seg-quick-meeting secondary" type="button" data-action="quick-meeting" data-seg-id="${escapeAttr(r.ID)}">${icon('plus','icon icon-sm')}<span>Nuovo incontro</span></button>`;
+  }
+
   return `<button class="seg-quick-meeting" type="button" data-action="quick-meeting" data-seg-id="${escapeAttr(r.ID)}">${icon('calendar','icon icon-sm')}<span>Crea incontro</span></button>`;
 }
 function openQuickMeeting(segId){
   const seg=segnalazioni.find(r=>String(r.ID||'')===String(segId||''));
   if(!seg){apiError('Segnalazione non trovata.');return}
   const proceed=()=>{
-    const linked=linkedMeetingForSeg(seg);
-    if(linked){
-      renderSegnalazioni();
-      showToast('Questa segnalazione ha già un incontro collegato.');
-      return;
-    }
+    renderSegnalazioni();
     openMeetingModal(null,seg.ID);
   };
   if(incontriLoadedOnce){proceed();return}
   apiRequest('incontri',{},data=>{
-    if(!Array.isArray(data)){apiError('Non riesco a verificare gli incontri. Riprova.');return}
+    if(!Array.isArray(data)){apiError('Non riesco a caricare gli incontri. Riprova.');return}
     incontri=data;
     incontriLoadedOnce=true;
-    renderSegnalazioni();
     proceed();
   });
 }

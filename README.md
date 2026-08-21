@@ -98,3 +98,13 @@ Solo il coordinatore vede il comando `Elimina`.
 - il backend blocca l'eliminazione se esiste un incontro attivo collegato;
 - l'azione è registrata nel foglio `Registro` senza Nome, Recapito o Descrizione;
 - la risposta originale presente su Tally non viene eliminata.
+
+
+## V23 — Segnalazioni compatte e incontri multipli
+
+- Le card Segnalazioni tornano più compatte, soprattutto su mobile.
+- Nessun incontro: `Crea incontro`.
+- Uno o più incontri già collegati: indicatore del numero + `Nuovo incontro`.
+- È possibile collegare più incontri alla stessa segnalazione.
+- Le segnalazioni concluse mostrano solo il numero di incontri collegati e non propongono nuovi incontri.
+- Il comando `Elimina` resta disponibile ma visivamente secondario.

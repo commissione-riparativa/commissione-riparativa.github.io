@@ -402,3 +402,103 @@ tbody tr:hover td{background:#fafaf8}
   .seg-mobile-actions{grid-template-columns:1fr}
   .seg-mobile-actions .seg-delete-action{justify-content:center;width:100%}
 }
+
+
+/* V23 — Segnalazioni di nuovo compatte */
+.seg-mobile-head{
+  padding:10px 12px;
+}
+.seg-mobile-date-icon{
+  width:30px;height:30px;border-radius:8px;
+}
+.seg-mobile-body{
+  padding:10px 12px;
+  gap:7px;
+}
+.seg-mobile-field{
+  grid-template-columns:80px minmax(0,1fr);
+  gap:8px;
+}
+.seg-mobile-card + .seg-mobile-card{
+  margin-top:11px;
+}
+
+/* Azioni più leggere: non devono allungare la card */
+.seg-row-actions{
+  flex-direction:row;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:5px 7px;
+}
+.seg-mobile-meeting-action{
+  margin-top:2px;
+  padding-top:8px;
+  border-top:1px solid #edf0eb;
+}
+.seg-mobile-actions{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:6px;
+}
+.seg-mobile-actions .seg-quick-meeting{
+  width:auto;
+  min-height:34px;
+  font-size:11.5px;
+}
+.seg-mobile-actions .seg-delete-action{
+  width:auto;
+  min-height:32px;
+  padding:5px 7px;
+  border:0;
+  background:transparent;
+}
+
+/* Stato incontro: piccolo indicatore, non un altro box */
+.seg-meeting-state{
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+  min-height:28px;
+  padding:4px 7px;
+  border-radius:8px;
+  background:#f3f5f2;
+  color:#686d67;
+  font-size:11px;
+  font-weight:500;
+  line-height:1.2;
+  white-space:nowrap;
+}
+.seg-quick-meeting{
+  min-height:32px;
+  padding:5px 9px;
+  border-radius:8px;
+  font-size:11.5px;
+}
+.seg-quick-meeting.secondary{
+  background:#fff;
+  border-color:#d9e6df;
+  color:#286552;
+  box-shadow:none;
+}
+.seg-quick-meeting.secondary:hover{
+  background:#f5faf7;
+}
+.seg-delete-action{
+  min-height:28px;
+  padding:4px 6px;
+  font-size:11px;
+}
+
+@media(max-width:420px){
+  .seg-mobile-field{grid-template-columns:74px minmax(0,1fr)}
+  .seg-mobile-actions{
+    display:flex;
+    grid-template-columns:none;
+  }
+  .seg-mobile-actions .seg-delete-action{
+    justify-content:flex-start;
+    width:auto;
+  }
+}
+
