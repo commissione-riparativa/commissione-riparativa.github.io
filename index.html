@@ -6,8 +6,8 @@
 <meta name="referrer" content="no-referrer">
 <meta name="theme-color" content="#f6f7f4">
 <title>Giustizia Riparativa</title>
-<link rel="stylesheet" href="style.css">
-<link rel="manifest" href="manifest.webmanifest">
+<link rel="stylesheet" href="style.css?v=22">
+<link rel="manifest" href="manifest.webmanifest?v=22">
 <link rel="icon" href="icons/favicon-bilancia-v2.png" type="image/png">
 <link rel="apple-touch-icon" href="icons/apple-touch-bilancia-v2.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -159,6 +159,17 @@
   </div>
 </div>
 
+<div class="confirm-bg" id="confirm-seg-bg" role="presentation">
+  <div class="confirm-box" role="alertdialog" aria-modal="true" aria-labelledby="confirm-seg-title" aria-describedby="confirm-seg-text">
+    <h4 id="confirm-seg-title">Elimina segnalazione</h4>
+    <p id="confirm-seg-text">La segnalazione verrà eliminata definitivamente dal foglio Google Sheets. Vuoi continuare?</p>
+    <div class="confirm-btns">
+      <button class="btn-small" id="seg-delete-cancel" type="button">Annulla</button>
+      <button class="btn-danger" id="seg-delete-confirm" type="button"><svg class="icon" aria-hidden="true"><use href="#i-trash"></use></svg>Elimina</button>
+    </div>
+  </div>
+</div>
+
 <div class="confirm-bg" id="confirm-bg" role="presentation">
   <div class="confirm-box" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-text">
     <h4 id="confirm-title">Elimina incontro</h4><p id="confirm-text">L’incontro non sarà più visibile nell’area della commissione. Vuoi continuare?</p>
@@ -168,5 +179,5 @@
 
 
 <div id="toast" class="toast" role="status" aria-live="polite" aria-atomic="true"></div>
-<script src="app.js"></script></body>
+<script src="app.js?v=22"></script></body>
 </html>

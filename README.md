@@ -80,3 +80,21 @@ selezionata. Quando viene creato l'incontro, la segnalazione mostra
 `Incontro collegato` e il pulsante rapido scompare.
 
 Non sono state aggiunte nuove API al backend.
+
+
+## V21 — Pulsante incontro più robusto
+
+- `Crea incontro` è visibile al coordinatore anche mentre l'elenco incontri si sta caricando.
+- Al clic, il sito verifica nuovamente gli incontri prima di aprire il modulo, evitando duplicati.
+- Riconosce anche incontri storici privi di `Segnalazione ID`, confrontando data/componente/contatto.
+- `app.js`, `style.css`, manifest e service worker usano versionamento URL per ridurre i problemi di cache PWA.
+
+
+## V22 — Elimina segnalazione
+
+Solo il coordinatore vede il comando `Elimina`.
+
+- la riga viene eliminata realmente dal foglio `Segnalazioni`;
+- il backend blocca l'eliminazione se esiste un incontro attivo collegato;
+- l'azione è registrata nel foglio `Registro` senza Nome, Recapito o Descrizione;
+- la risposta originale presente su Tally non viene eliminata.

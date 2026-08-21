@@ -381,3 +381,24 @@ tbody tr:hover td{background:#fafaf8}
   .seg-row-actions{gap:6px}
 }
 
+
+/* V21 — il comando rapido resta discreto ma chiaramente azionabile */
+.seg-quick-meeting{box-shadow:0 1px 0 rgba(29,158,117,.04)}
+.seg-mobile-meeting-action{margin-top:7px}
+
+/* V22 — eliminazione segnalazioni */
+.seg-delete-action{
+  display:inline-flex;align-items:center;gap:5px;min-height:30px;padding:4px 7px;
+  border:0;background:transparent;color:#9b4b45;font:inherit;font-size:11.5px;
+  font-weight:500;cursor:pointer;border-radius:7px;
+}
+.seg-delete-action:hover{background:#fff2f0;color:#b43a32}
+.seg-mobile-actions{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center}
+.seg-mobile-actions .seg-quick-meeting{width:100%}
+.seg-mobile-actions .seg-delete-action{
+  min-height:46px;padding:8px 11px;border:1px solid #efd9d6;background:#fffafa;
+}
+@media(max-width:420px){
+  .seg-mobile-actions{grid-template-columns:1fr}
+  .seg-mobile-actions .seg-delete-action{justify-content:center;width:100%}
+}

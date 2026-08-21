@@ -2,7 +2,7 @@
 function registerServiceWorker(){
   if(!('serviceWorker' in navigator))return;
   window.addEventListener('load',()=>{
-    navigator.serviceWorker.register('./sw.js').catch(err=>{
+    navigator.serviceWorker.register('./sw.js?v=22').catch(err=>{
       console.warn('Service worker non registrato:',err);
     });
   },{once:true});
@@ -20,7 +20,7 @@ const DEMO_MODE=new URLSearchParams(location.search).get('demo')==='1';
 
 let members=DEMO_MODE?[...DEFAULT_MEMBERS]:[],membersDraft=[],currentUser=null,currentUserId=null,currentUserEmail='',isCoord=false,authToken='',rememberDevice=true,authFlowBusy=false;
 let segnalazioni=[],incontri=[],disponibilita=[];
-let editingId=null,deletingId=null,deletingMembroIdx=null,currentSegFilter='all',showPastMeetings=false,openPanels={},pendingLoginEmail='';
+let editingId=null,deletingId=null,deletingSegId=null,deletingMembroIdx=null,currentSegFilter='all',showPastMeetings=false,openPanels={},pendingLoginEmail='';
 let cbN=0,loadingSeg=false,loadingInc=false,incontriLoadedOnce=false;
 const dialogReturnFocus=new Map();
 let DEMO_SEGNALAZIONI=[
@@ -80,6 +80,7 @@ function demoRequest(action,params,cb){let resp={ok:true,demo:true};try{
   else if(action==='incontri')resp=DEMO_INCONTRI.map(r=>({...r}));
   else if(action==='disponibilita')resp=DEMO_DISP.map(r=>({...r}));
   else if(action==='stato'){const r=DEMO_SEGNALAZIONI.find(x=>x.ID===params.id);if(!r)resp={ok:false,message:'Segnalazione non trovata.'};else r.Stato=params.stato}
+  else if(action==='elimina_segnalazione'){const linked=DEMO_INCONTRI.some(x=>x.segnalazioneId===params.id);if(linked)resp={ok:false,error:'segnalazione_con_incontro',message:'Questa segnalazione ha già un incontro collegato.'};else DEMO_SEGNALAZIONI=DEMO_SEGNALAZIONI.filter(x=>x.ID!==params.id)}
   else if(action==='salva'){const i=DEMO_DISP.findIndex(x=>x.membro===params.membro&&x.incontro===params.incontro);if(i>=0)DEMO_DISP[i].risposta=params.risposta;else DEMO_DISP.push({membro:params.membro,incontro:params.incontro,risposta:params.risposta})}
   else if(action==='nuovo_incontro'){DEMO_INCONTRI.push({id:'demo-'+Date.now(),dataIso:params.data,titolo:meetingTitle(params.data),orario:params.orario,luogo:params.luogo||'',segnalazioneId:params.segnalazione_id||'',segnalazione:summaryForSeg(params.segnalazione_id)})}
   else if(action==='modifica_incontro'){const r=DEMO_INCONTRI.find(x=>x.id===params.id);if(r)Object.assign(r,{dataIso:params.data,titolo:meetingTitle(params.data),orario:params.orario,luogo:params.luogo||'',segnalazioneId:params.segnalazione_id||'',segnalazione:summaryForSeg(params.segnalazione_id)})}
@@ -100,21 +101,61 @@ function isPast(inc){const d=meetingDate(inc);if(!d)return false;const t=new Dat
 function isToday(inc){const d=meetingDate(inc);if(!d)return false;const t=new Date();t.setHours(0,0,0,0);return d.getTime()===t.getTime()}
 function parseMeetingSummary(v){const p=String(v||'').split(' · ');return{date:(p[0]||'').replace(/^Segnalazione\s+(del\s+)?/i,''),component:p[1]||'',contact:p.slice(2).join(' · ')||''}}
 function segTimestamp(v){const d=parseDate(v);return d?d.getTime():0}
-function linkedMeetingForSeg(segId){
-  const id=String(segId||'').trim();
-  if(!id)return null;
-  return incontri.find(inc=>String(inc.segnalazioneId||'').trim()===id)||null;
+function normalizeCompare(v){return String(v||'').trim().toLowerCase().replace(/\s+/g,' ')}
+function linkedMeetingForSeg(seg){
+  if(!seg)return null;
+  const id=String(seg.ID||'').trim();
+  if(id){
+    const exact=incontri.find(inc=>String(inc.segnalazioneId||'').trim()===id);
+    if(exact)return exact;
+  }
+  // Compatibilità con incontri storici creati prima dell'introduzione di "Segnalazione ID".
+  const targetDate=normalizeCompare(dateLong(seg.Data));
+  const targetComponent=normalizeCompare(seg.Componente);
+  const targetContact=normalizeCompare(seg.Recapito);
+  return incontri.find(inc=>{
+    if(String(inc.segnalazioneId||'').trim())return false;
+    const parsed=parseMeetingSummary(inc.segnalazione||'');
+    return normalizeCompare(dateLong(parsed.date))===targetDate
+      && normalizeCompare(parsed.component)===targetComponent
+      && normalizeCompare(parsed.contact)===targetContact;
+  })||null;
+}
+function deleteSegAction(r){
+  if(!isCoord||!r?.ID)return '';
+  return `<button class="seg-delete-action" type="button" data-action="delete-seg" data-seg-id="${escapeAttr(r.ID)}">${icon('trash','icon icon-sm')}<span>Elimina</span></button>`;
 }
 function quickMeetingAction(r){
-  if(!isCoord||!incontriLoadedOnce||!r?.ID)return '';
-  const linked=linkedMeetingForSeg(r.ID);
+  if(!isCoord||!r?.ID)return '';
+  if((r.Stato||'Aperta')==='Chiusa')return '';
+  const linked=incontriLoadedOnce?linkedMeetingForSeg(r):null;
   if(linked){
     const d=meetingDate(linked);
     const when=d?`${String(d.getDate()).padStart(2,'0')} ${MONTHS[d.getMonth()].slice(0,3).toUpperCase()}`:'';
     return `<span class="seg-meeting-linked">${icon('calendar','icon icon-sm')}<span>Incontro collegato${when?` · ${escapeHtml(when)}`:''}</span></span>`;
   }
-  if((r.Stato||'Aperta')==='Chiusa')return '';
   return `<button class="seg-quick-meeting" type="button" data-action="quick-meeting" data-seg-id="${escapeAttr(r.ID)}">${icon('calendar','icon icon-sm')}<span>Crea incontro</span></button>`;
+}
+function openQuickMeeting(segId){
+  const seg=segnalazioni.find(r=>String(r.ID||'')===String(segId||''));
+  if(!seg){apiError('Segnalazione non trovata.');return}
+  const proceed=()=>{
+    const linked=linkedMeetingForSeg(seg);
+    if(linked){
+      renderSegnalazioni();
+      showToast('Questa segnalazione ha già un incontro collegato.');
+      return;
+    }
+    openMeetingModal(null,seg.ID);
+  };
+  if(incontriLoadedOnce){proceed();return}
+  apiRequest('incontri',{},data=>{
+    if(!Array.isArray(data)){apiError('Non riesco a verificare gli incontri. Riprova.');return}
+    incontri=data;
+    incontriLoadedOnce=true;
+    renderSegnalazioni();
+    proceed();
+  });
 }
 
 function buildLogin(){showLoginEmailStep('')}
@@ -328,10 +369,40 @@ function loadSegnalazioni(){if(loadingSeg)return;loadingSeg=true;$('refresh-segn
 function populateSegSelect(){const sel=$('modal-segnalazione');const sorted=[...segnalazioni].sort((a,b)=>segTimestamp(b.Data)-segTimestamp(a.Data));sel.innerHTML='<option value="">— Nessuna segnalazione —</option>'+sorted.map(r=>`<option value="${escapeAttr(r.ID||'')}">${escapeHtml(dateLong(r.Data)+' · '+componentDisplay(r.Componente)+(r.Recapito?' · '+r.Recapito:''))}</option>`).join('')}
 function statusMarkup(r,index){if(!isCoord)return `<span class="badge ${statusClass(r.Stato)}">${escapeHtml(statusLabel(r.Stato||'Aperta'))}</span>`;return `<select class="stato-sel" data-id="${escapeAttr(r.ID||'')}" data-index="${index}" aria-label="Stato della segnalazione"><option value="Aperta" ${(r.Stato||'Aperta')==='Aperta'?'selected':''}>Da prendere in carico</option><option value="In gestione" ${r.Stato==='In gestione'?'selected':''}>In percorso</option><option value="Chiusa" ${r.Stato==='Chiusa'?'selected':''}>Conclusa</option></select>`}
 function renderSegnalazioni(){const all=[...segnalazioni].sort((a,b)=>segTimestamp(b.Data)-segTimestamp(a.Data));const counts={all:all.length,'Aperta':all.filter(r=>(r.Stato||'Aperta')==='Aperta').length,'In gestione':all.filter(r=>r.Stato==='In gestione').length,'Chiusa':all.filter(r=>r.Stato==='Chiusa').length};$('stat-total').textContent=counts.all;$('stat-aperte').textContent=counts.Aperta;$('stat-gestione').textContent=counts['In gestione'];$('stat-chiuse').textContent=counts.Chiusa;const rows=currentSegFilter==='all'?all:all.filter(r=>(r.Stato||'Aperta')===currentSegFilter);if(!all.length){$('table-container').innerHTML=emptyState('report','Nessuna segnalazione','Le nuove segnalazioni appariranno qui.');return}if(!rows.length){$('table-container').innerHTML=emptyState('report','Nessuna segnalazione in questa categoria','Scegli un altro filtro per vedere le altre segnalazioni.');return}
- const desktop=`<div class="seg-desktop-table"><table aria-label="Segnalazioni ricevute"><thead><tr><th scope="col" style="width:18%">Data</th><th scope="col" style="width:19%">Componente</th><th scope="col" style="width:22%">Contatto</th><th scope="col" style="width:23%">Stato</th><th scope="col" style="width:18%">Azioni</th></tr></thead><tbody>${rows.map(r=>{const i=segnalazioni.indexOf(r),url=safeExternalUrl(r['Link Risposta']),meetingAction=quickMeetingAction(r);return `<tr><td>${escapeHtml(dateLong(r.Data))}</td><td><span class="badge ${componentClass(r.Componente)}">${escapeHtml(componentDisplay(r.Componente))}</span></td><td>${escapeHtml(r.Recapito||'—')}</td><td>${statusMarkup(r,i)}</td><td><div class="seg-row-actions">${url?`<a href="${escapeAttr(url)}" target="_blank" rel="noopener noreferrer">Apri risposta ${icon('external','icon icon-sm')}</a>`:''}${meetingAction}${!url&&!meetingAction?'—':''}</div></td></tr>`}).join('')}</tbody></table></div>`;
- const mobile=`<div class="seg-mobile-list" aria-label="Segnalazioni ricevute">${rows.map(r=>{const i=segnalazioni.indexOf(r),st=r.Stato||'Aperta',state=st==='Chiusa'?'state-chiusa':st==='In gestione'?'state-gestione':'state-aperta',url=safeExternalUrl(r['Link Risposta']),meetingAction=quickMeetingAction(r);return `<article class="seg-mobile-card ${state}"><div class="seg-mobile-head"><div class="seg-mobile-date-wrap"><div class="seg-mobile-date-icon">${icon('report')}</div><div><div class="seg-mobile-kicker">Segnalazione</div><div class="seg-mobile-date">${escapeHtml(dateLong(r.Data))}</div></div></div>${statusMarkup(r,i)}</div><div class="seg-mobile-body"><div class="seg-mobile-field"><div class="seg-mobile-field-label">Componente</div><div class="seg-mobile-field-value"><span class="badge ${componentClass(r.Componente)}">${escapeHtml(componentDisplay(r.Componente))}</span></div></div><div class="seg-mobile-field"><div class="seg-mobile-field-label">Contatto</div><div class="seg-mobile-field-value">${escapeHtml(r.Recapito||'—')}</div></div><div class="seg-mobile-field"><div class="seg-mobile-field-label">Risposta</div><div class="seg-mobile-field-value">${url?`<a href="${escapeAttr(url)}" target="_blank" rel="noopener noreferrer">Apri risposta ${icon('external','icon icon-sm')}</a>`:'Non disponibile'}</div></div></div>${meetingAction?`<div class="seg-mobile-meeting-action">${meetingAction}</div>`:''}</article>`}).join('')}</div>`;
+ const desktop=`<div class="seg-desktop-table"><table aria-label="Segnalazioni ricevute"><thead><tr><th scope="col" style="width:18%">Data</th><th scope="col" style="width:19%">Componente</th><th scope="col" style="width:22%">Contatto</th><th scope="col" style="width:23%">Stato</th><th scope="col" style="width:18%">Azioni</th></tr></thead><tbody>${rows.map(r=>{const i=segnalazioni.indexOf(r),url=safeExternalUrl(r['Link Risposta']),meetingAction=quickMeetingAction(r),deleteAction=deleteSegAction(r);return `<tr><td>${escapeHtml(dateLong(r.Data))}</td><td><span class="badge ${componentClass(r.Componente)}">${escapeHtml(componentDisplay(r.Componente))}</span></td><td>${escapeHtml(r.Recapito||'—')}</td><td>${statusMarkup(r,i)}</td><td><div class="seg-row-actions">${url?`<a href="${escapeAttr(url)}" target="_blank" rel="noopener noreferrer">Apri risposta ${icon('external','icon icon-sm')}</a>`:''}${meetingAction}${deleteAction}${!url&&!meetingAction&&!deleteAction?'—':''}</div></td></tr>`}).join('')}</tbody></table></div>`;
+ const mobile=`<div class="seg-mobile-list" aria-label="Segnalazioni ricevute">${rows.map(r=>{const i=segnalazioni.indexOf(r),st=r.Stato||'Aperta',state=st==='Chiusa'?'state-chiusa':st==='In gestione'?'state-gestione':'state-aperta',url=safeExternalUrl(r['Link Risposta']),meetingAction=quickMeetingAction(r),deleteAction=deleteSegAction(r);return `<article class="seg-mobile-card ${state}"><div class="seg-mobile-head"><div class="seg-mobile-date-wrap"><div class="seg-mobile-date-icon">${icon('report')}</div><div><div class="seg-mobile-kicker">Segnalazione</div><div class="seg-mobile-date">${escapeHtml(dateLong(r.Data))}</div></div></div>${statusMarkup(r,i)}</div><div class="seg-mobile-body"><div class="seg-mobile-field"><div class="seg-mobile-field-label">Componente</div><div class="seg-mobile-field-value"><span class="badge ${componentClass(r.Componente)}">${escapeHtml(componentDisplay(r.Componente))}</span></div></div><div class="seg-mobile-field"><div class="seg-mobile-field-label">Contatto</div><div class="seg-mobile-field-value">${escapeHtml(r.Recapito||'—')}</div></div><div class="seg-mobile-field"><div class="seg-mobile-field-label">Risposta</div><div class="seg-mobile-field-value">${url?`<a href="${escapeAttr(url)}" target="_blank" rel="noopener noreferrer">Apri risposta ${icon('external','icon icon-sm')}</a>`:'Non disponibile'}</div></div></div>${meetingAction||deleteAction?`<div class="seg-mobile-meeting-action seg-mobile-actions">${meetingAction}${deleteAction}</div>`:''}</article>`}).join('')}</div>`;
  $('table-container').innerHTML=desktop+mobile}
 function updateStatus(select){const id=select.dataset.id,index=Number(select.dataset.index),next=select.value,row=segnalazioni[index];if(!isCoord||!id||!row)return;const prev=row.Stato||'Aperta';row.Stato=next;select.disabled=true;apiRequest('stato',{id,stato:next},resp=>{select.disabled=false;if(!apiSucceeded(resp)){row.Stato=prev;renderSegnalazioni();apiError(resp?.message||'Stato non aggiornato. Riprova.');return}stampUpdate('seg-updated');renderSegnalazioni();showToast('Segnalazione aggiornata')})}
+
+function askDeleteSeg(id){
+  if(!isCoord||!id)return;
+  const seg=segnalazioni.find(r=>String(r.ID)===String(id));
+  if(!seg)return;
+  deletingSegId=id;
+  $('confirm-seg-text').textContent=`La segnalazione del ${dateLong(seg.Data)} verrà eliminata definitivamente dal foglio Google Sheets. Vuoi continuare?`;
+  openDialog('confirm-seg-bg','#seg-delete-confirm');
+}
+function closeDeleteSeg(){deletingSegId=null;closeDialog('confirm-seg-bg')}
+function confirmDeleteSeg(){
+  if(!isCoord||!deletingSegId)return;
+  if(!navigator.onLine&&!DEMO_MODE){apiError('Sei offline.');return}
+  const id=deletingSegId,btn=$('seg-delete-confirm');
+  if(btn){btn.disabled=true;btn.textContent='Eliminazione…'}
+  apiRequest('elimina_segnalazione',{id},resp=>{
+    if(btn){btn.disabled=false;btn.innerHTML=icon('trash')+'Elimina'}
+    if(!apiSucceeded(resp)){
+      closeDeleteSeg();
+      apiError(resp?.message||'Segnalazione non eliminata. Riprova.');
+      return;
+    }
+    segnalazioni=segnalazioni.filter(r=>String(r.ID)!==String(id));
+    closeDeleteSeg();
+    stampUpdate('seg-updated');
+    renderSegnalazioni();
+    populateSegSelect();
+    showToast('Segnalazione eliminata');
+  });
+}
 
 function loadIncontri(){if(loadingInc)return;loadingInc=true;$('refresh-incontri').disabled=true;$('incontri-list').innerHTML=LOADER;$('incontri-list').setAttribute('aria-busy','true');apiRequest('incontri',{},data=>{if(!Array.isArray(data)){finishIncontriLoad();$('incontri-list').innerHTML=emptyState('warning','Impossibile caricare gli incontri','Controlla la connessione e premi Aggiorna per riprovare.');apiError('Impossibile caricare gli incontri.');return}incontri=data;apiRequest('disponibilita',{},disp=>{disponibilita=Array.isArray(disp)?disp:[];finishIncontriLoad();stampUpdate('inc-updated');renderIncontri();if(!Array.isArray(disp))apiError('Incontri caricati, ma non le disponibilità.')})})}
 function finishIncontriLoad(){loadingInc=false;incontriLoadedOnce=true;$('refresh-incontri').disabled=false;$('incontri-list').removeAttribute('aria-busy');if(segnalazioni.length)renderSegnalazioni()}
@@ -471,11 +542,17 @@ window.addEventListener('DOMContentLoaded',()=>{
   $('seg-filters').addEventListener('click',e=>{const b=e.target.closest('.stat');if(b)setSegFilter(b.dataset.filter)});
   $('table-container').addEventListener('change',e=>{const s=e.target.closest('.stato-sel');if(s)updateStatus(s)});
   $('table-container').addEventListener('click',e=>{
+    const del=e.target.closest('[data-action="delete-seg"]');
+    if(del&&isCoord){
+      const segId=del.dataset.segId;
+      if(segId)askDeleteSeg(segId);
+      return;
+    }
     const b=e.target.closest('[data-action="quick-meeting"]');
     if(!b||!isCoord)return;
     const segId=b.dataset.segId;
     if(!segId)return;
-    openMeetingModal(null,segId);
+    openQuickMeeting(segId);
   });
 
   $('incontri-list').addEventListener('click',e=>{
@@ -514,6 +591,8 @@ window.addEventListener('DOMContentLoaded',()=>{
 
   $('delete-cancel').addEventListener('click',closeDeleteMeeting);
   $('delete-confirm').addEventListener('click',confirmDeleteMeeting);
+  $('seg-delete-cancel').addEventListener('click',closeDeleteSeg);
+  $('seg-delete-confirm').addEventListener('click',confirmDeleteSeg);
   $('member-delete-cancel').addEventListener('click',cancelRemoveMember);
   $('member-delete-confirm').addEventListener('click',confirmRemoveMember);
 
@@ -524,6 +603,7 @@ window.addEventListener('DOMContentLoaded',()=>{
     if(e.key==='Escape'){
       closeMobileMenu();
       if($('confirm-membro-bg').classList.contains('open'))return cancelRemoveMember();
+      if($('confirm-seg-bg').classList.contains('open'))return closeDeleteSeg();
       if($('confirm-bg').classList.contains('open'))return closeDeleteMeeting();
       if($('modal-impostazioni').classList.contains('open'))return closeMembers();
       if($('modal-bg').classList.contains('open'))return closeMeetingModal();
@@ -531,6 +611,7 @@ window.addEventListener('DOMContentLoaded',()=>{
     focusTrap(e);
   });
   for(const id of ['modal-bg','modal-impostazioni'])$(id).addEventListener('click',e=>{if(e.target===e.currentTarget)(id==='modal-bg'?closeMeetingModal:closeMembers)()});
+  $('confirm-seg-bg').addEventListener('click',e=>{if(e.target===e.currentTarget)closeDeleteSeg()});
 
   if(DEMO_MODE){
     currentUser=DEFAULT_MEMBERS[0];currentUserId='demo';currentUserEmail='demo@example.it';isCoord=true;authToken='demo';members=[...DEFAULT_MEMBERS];showMain();
