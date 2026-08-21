@@ -53,3 +53,9 @@ Il progetto include ora:
 
 La PWA memorizza in cache solo i file dell'interfaccia. Le chiamate al backend Google Apps Script non vengono memorizzate dal service worker.
 
+
+## Bilancia definitiva
+
+La PWA usa ora la bilancia verde con foglie come icona principale.
+I file dell'icona sono versionati (`v2`) e la cache del service worker
+è stata aggiornata per facilitare la sostituzione dell'icona precedente.

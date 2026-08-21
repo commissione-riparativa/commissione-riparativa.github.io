@@ -1,4 +1,4 @@
-const CACHE_NAME = 'giustizia-riparativa-pwa-v1';
+const CACHE_NAME = 'giustizia-riparativa-pwa-v2-bilancia';
 
 const APP_SHELL = [
   './',
@@ -6,10 +6,10 @@ const APP_SHELL = [
   './style.css',
   './app.js',
   './manifest.webmanifest',
-  './icons/icon.svg',
-  './icons/icon-192.png',
-  './icons/icon-512.png',
-  './icons/apple-touch-icon.png'
+  './icons/bilancia-192-v2.png',
+  './icons/bilancia-512-v2.png',
+  './icons/apple-touch-bilancia-v2.png',
+  './icons/favicon-bilancia-v2.png'
 ];
 
 self.addEventListener('install', event => {
