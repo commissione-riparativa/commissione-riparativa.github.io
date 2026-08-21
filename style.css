@@ -502,3 +502,116 @@ tbody tr:hover td{background:#fafaf8}
   }
 }
 
+
+
+/* V24 — Segnalazioni: desktop compatto e gerarchia più chiara */
+
+/* Numeri riepilogo con colore semantico */
+.stat-all .stat-value{color:#343936}
+.stat-open .stat-value{color:var(--red)}
+.stat-progress .stat-value{color:var(--amber)}
+.stat-closed .stat-value{color:var(--green-dark)}
+
+/* Anche quando il filtro è attivo conserviamo il significato del numero */
+.stat-open.active{background:#fff5f3;border-color:#efcbc7}
+.stat-open.active .stat-value{color:var(--red)}
+.stat-progress.active{background:#fff9e9;border-color:#ead9a9}
+.stat-progress.active .stat-value{color:var(--amber)}
+.stat-closed.active{background:var(--green-soft);border-color:#b7ddcf}
+.stat-closed.active .stat-value{color:var(--green-dark)}
+.stat-all.active{background:#f3f5f2;border-color:#d9ddd7}
+.stat-all.active .stat-value{color:#343936}
+.stat.active .stat-label{color:#555c56}
+
+/* Tabella più densa: niente grandi vuoti verticali */
+.seg-desktop-table table{font-size:13px}
+.seg-desktop-table th{padding:10px 12px}
+.seg-desktop-table td{padding:9px 12px;line-height:1.3}
+.seg-desktop-table tbody tr{height:auto}
+.seg-desktop-table .stato-sel{
+  min-height:34px;
+  padding-top:5px;
+  padding-bottom:5px;
+  font-size:12px;
+}
+
+/* Azioni in massimo due righe compatte */
+.seg-row-actions{
+  display:grid;
+  gap:5px;
+  align-items:start;
+}
+.seg-action-info,
+.seg-action-buttons{
+  display:flex;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:5px 7px;
+  min-width:0;
+}
+.seg-response-link{
+  display:inline-flex;
+  align-items:center;
+  gap:4px;
+  font-size:12px;
+  font-weight:600;
+  white-space:nowrap;
+}
+.seg-meeting-state{
+  min-height:25px;
+  padding:3px 6px;
+  border-radius:7px;
+  font-size:10.5px;
+  background:#f2f5f2;
+  color:#687069;
+}
+.seg-quick-meeting{
+  min-height:30px;
+  padding:4px 8px;
+  border-radius:8px;
+  font-size:11.5px;
+}
+.seg-delete-action{
+  min-height:28px;
+  padding:3px 5px;
+  font-size:10.5px;
+}
+
+/* Su mobile torniamo a una card breve, senza "box dentro box" */
+@media(max-width:700px){
+  .seg-mobile-card + .seg-mobile-card{margin-top:10px}
+  .seg-mobile-head{padding:9px 11px}
+  .seg-mobile-body{padding:9px 11px;gap:6px}
+  .seg-mobile-field{
+    grid-template-columns:76px minmax(0,1fr);
+    gap:7px;
+  }
+  .seg-mobile-field-label{font-size:10px}
+  .seg-mobile-field-value{font-size:13px;line-height:1.35}
+  .seg-mobile-meeting-action{
+    margin-top:1px;
+    padding-top:7px;
+  }
+  .seg-mobile-actions{
+    display:flex;
+    align-items:center;
+    flex-wrap:wrap;
+    gap:5px;
+  }
+  .seg-mobile-actions .seg-meeting-state{
+    order:0;
+  }
+  .seg-mobile-actions .seg-quick-meeting{
+    width:auto;
+    min-height:32px;
+    padding:5px 8px;
+  }
+  .seg-mobile-actions .seg-delete-action{
+    width:auto;
+    min-height:30px;
+    padding:4px 6px;
+    border:0;
+    background:transparent;
+  }
+}
+

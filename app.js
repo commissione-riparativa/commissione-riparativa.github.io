@@ -2,7 +2,7 @@
 function registerServiceWorker(){
   if(!('serviceWorker' in navigator))return;
   window.addEventListener('load',()=>{
-    navigator.serviceWorker.register('./sw.js?v=23').catch(err=>{
+    navigator.serviceWorker.register('./sw.js?v=24').catch(err=>{
       console.warn('Service worker non registrato:',err);
     });
   },{once:true});
@@ -102,6 +102,33 @@ function isToday(inc){const d=meetingDate(inc);if(!d)return false;const t=new Da
 function parseMeetingSummary(v){const p=String(v||'').split(' · ');return{date:(p[0]||'').replace(/^Segnalazione\s+(del\s+)?/i,''),component:p[1]||'',contact:p.slice(2).join(' · ')||''}}
 function segTimestamp(v){const d=parseDate(v);return d?d.getTime():0}
 function normalizeCompare(v){return String(v||'').trim().toLowerCase().replace(/\s+/g,' ')}
+function normalizeComponentKey(v){
+  let s=normalizeCompare(v).replace(/^componente\s+/,'');
+  if(s==='entrambe'||s==='entrambi')s='entrambe';
+  return s;
+}
+function legacyMeetingMatchesSeg(inc,seg){
+  const parsed=parseMeetingSummary(inc.segnalazione||'');
+  if(!parsed.date||!parsed.component)return false;
+
+  const sameDate=normalizeCompare(dateLong(parsed.date))===normalizeCompare(dateLong(seg.Data));
+  const sameComponent=normalizeComponentKey(parsed.component)===normalizeComponentKey(seg.Componente);
+  if(!sameDate||!sameComponent)return false;
+
+  const meetingContact=normalizeCompare(parsed.contact);
+  const segContact=normalizeCompare(seg.Recapito);
+
+  // Se entrambi hanno un recapito, deve coincidere.
+  if(meetingContact&&segContact)return meetingContact===segContact;
+
+  // Per vecchi incontri senza recapito, usiamo data+componente solo se
+  // individuano una sola segnalazione: così evitiamo associazioni ambigue.
+  const candidates=segnalazioni.filter(r=>
+    normalizeCompare(dateLong(r.Data))===normalizeCompare(dateLong(seg.Data))
+    && normalizeComponentKey(r.Componente)===normalizeComponentKey(seg.Componente)
+  );
+  return candidates.length===1;
+}
 function linkedMeetingsForSeg(seg){
   if(!seg)return [];
   const id=String(seg.ID||'').trim();
@@ -112,19 +139,8 @@ function linkedMeetingsForSeg(seg){
     const incId=String(inc.id||'');
     const linkedId=String(inc.segnalazioneId||'').trim();
 
-    let match=false;
-    if(id&&linkedId===id){
-      match=true;
-    }else if(!linkedId){
-      // Compatibilità con incontri storici creati prima dell'introduzione di "Segnalazione ID".
-      const targetDate=normalizeCompare(dateLong(seg.Data));
-      const targetComponent=normalizeCompare(seg.Componente);
-      const targetContact=normalizeCompare(seg.Recapito);
-      const parsed=parseMeetingSummary(inc.segnalazione||'');
-      match=normalizeCompare(dateLong(parsed.date))===targetDate
-        && normalizeCompare(parsed.component)===targetComponent
-        && normalizeCompare(parsed.contact)===targetContact;
-    }
+    // Associazione primaria e affidabile: ID della segnalazione.
+    const match=(id&&linkedId===id)||(!linkedId&&legacyMeetingMatchesSeg(inc,seg));
 
     if(match&&!seen.has(incId)){
       seen.add(incId);
@@ -383,7 +399,7 @@ function loadSegnalazioni(){if(loadingSeg)return;loadingSeg=true;$('refresh-segn
 function populateSegSelect(){const sel=$('modal-segnalazione');const sorted=[...segnalazioni].sort((a,b)=>segTimestamp(b.Data)-segTimestamp(a.Data));sel.innerHTML='<option value="">— Nessuna segnalazione —</option>'+sorted.map(r=>`<option value="${escapeAttr(r.ID||'')}">${escapeHtml(dateLong(r.Data)+' · '+componentDisplay(r.Componente)+(r.Recapito?' · '+r.Recapito:''))}</option>`).join('')}
 function statusMarkup(r,index){if(!isCoord)return `<span class="badge ${statusClass(r.Stato)}">${escapeHtml(statusLabel(r.Stato||'Aperta'))}</span>`;return `<select class="stato-sel" data-id="${escapeAttr(r.ID||'')}" data-index="${index}" aria-label="Stato della segnalazione"><option value="Aperta" ${(r.Stato||'Aperta')==='Aperta'?'selected':''}>Da prendere in carico</option><option value="In gestione" ${r.Stato==='In gestione'?'selected':''}>In percorso</option><option value="Chiusa" ${r.Stato==='Chiusa'?'selected':''}>Conclusa</option></select>`}
 function renderSegnalazioni(){const all=[...segnalazioni].sort((a,b)=>segTimestamp(b.Data)-segTimestamp(a.Data));const counts={all:all.length,'Aperta':all.filter(r=>(r.Stato||'Aperta')==='Aperta').length,'In gestione':all.filter(r=>r.Stato==='In gestione').length,'Chiusa':all.filter(r=>r.Stato==='Chiusa').length};$('stat-total').textContent=counts.all;$('stat-aperte').textContent=counts.Aperta;$('stat-gestione').textContent=counts['In gestione'];$('stat-chiuse').textContent=counts.Chiusa;const rows=currentSegFilter==='all'?all:all.filter(r=>(r.Stato||'Aperta')===currentSegFilter);if(!all.length){$('table-container').innerHTML=emptyState('report','Nessuna segnalazione','Le nuove segnalazioni appariranno qui.');return}if(!rows.length){$('table-container').innerHTML=emptyState('report','Nessuna segnalazione in questa categoria','Scegli un altro filtro per vedere le altre segnalazioni.');return}
- const desktop=`<div class="seg-desktop-table"><table aria-label="Segnalazioni ricevute"><thead><tr><th scope="col" style="width:18%">Data</th><th scope="col" style="width:19%">Componente</th><th scope="col" style="width:22%">Contatto</th><th scope="col" style="width:23%">Stato</th><th scope="col" style="width:18%">Azioni</th></tr></thead><tbody>${rows.map(r=>{const i=segnalazioni.indexOf(r),url=safeExternalUrl(r['Link Risposta']),meetingAction=quickMeetingAction(r),deleteAction=deleteSegAction(r);return `<tr><td>${escapeHtml(dateLong(r.Data))}</td><td><span class="badge ${componentClass(r.Componente)}">${escapeHtml(componentDisplay(r.Componente))}</span></td><td>${escapeHtml(r.Recapito||'—')}</td><td>${statusMarkup(r,i)}</td><td><div class="seg-row-actions">${url?`<a href="${escapeAttr(url)}" target="_blank" rel="noopener noreferrer">Apri risposta ${icon('external','icon icon-sm')}</a>`:''}${meetingAction}${deleteAction}${!url&&!meetingAction&&!deleteAction?'—':''}</div></td></tr>`}).join('')}</tbody></table></div>`;
+ const desktop=`<div class="seg-desktop-table"><table aria-label="Segnalazioni ricevute"><thead><tr><th scope="col" style="width:17%">Data</th><th scope="col" style="width:16%">Componente</th><th scope="col" style="width:15%">Contatto</th><th scope="col" style="width:22%">Stato</th><th scope="col" style="width:30%">Azioni</th></tr></thead><tbody>${rows.map(r=>{const i=segnalazioni.indexOf(r),url=safeExternalUrl(r['Link Risposta']),meetingAction=quickMeetingAction(r),deleteAction=deleteSegAction(r);return `<tr><td>${escapeHtml(dateLong(r.Data))}</td><td><span class="badge ${componentClass(r.Componente)}">${escapeHtml(componentDisplay(r.Componente))}</span></td><td>${escapeHtml(r.Recapito||'—')}</td><td>${statusMarkup(r,i)}</td><td><div class="seg-row-actions"><div class="seg-action-info">${url?`<a class="seg-response-link" href="${escapeAttr(url)}" target="_blank" rel="noopener noreferrer">Apri risposta ${icon('external','icon icon-sm')}</a>`:''}${meetingAction.includes('seg-meeting-state')?meetingAction.match(/<span class="seg-meeting-state">[\s\S]*?<\/span>/)?.[0]||'':''}</div><div class="seg-action-buttons">${meetingAction.includes('seg-quick-meeting')?meetingAction.replace(/<span class="seg-meeting-state">[\s\S]*?<\/span>/,''):''}${deleteAction}</div>${!url&&!meetingAction&&!deleteAction?'—':''}</div></td></tr>`}).join('')}</tbody></table></div>`;
  const mobile=`<div class="seg-mobile-list" aria-label="Segnalazioni ricevute">${rows.map(r=>{const i=segnalazioni.indexOf(r),st=r.Stato||'Aperta',state=st==='Chiusa'?'state-chiusa':st==='In gestione'?'state-gestione':'state-aperta',url=safeExternalUrl(r['Link Risposta']),meetingAction=quickMeetingAction(r),deleteAction=deleteSegAction(r);return `<article class="seg-mobile-card ${state}"><div class="seg-mobile-head"><div class="seg-mobile-date-wrap"><div class="seg-mobile-date-icon">${icon('report')}</div><div><div class="seg-mobile-kicker">Segnalazione</div><div class="seg-mobile-date">${escapeHtml(dateLong(r.Data))}</div></div></div>${statusMarkup(r,i)}</div><div class="seg-mobile-body"><div class="seg-mobile-field"><div class="seg-mobile-field-label">Componente</div><div class="seg-mobile-field-value"><span class="badge ${componentClass(r.Componente)}">${escapeHtml(componentDisplay(r.Componente))}</span></div></div><div class="seg-mobile-field"><div class="seg-mobile-field-label">Contatto</div><div class="seg-mobile-field-value">${escapeHtml(r.Recapito||'—')}</div></div><div class="seg-mobile-field"><div class="seg-mobile-field-label">Risposta</div><div class="seg-mobile-field-value">${url?`<a href="${escapeAttr(url)}" target="_blank" rel="noopener noreferrer">Apri risposta ${icon('external','icon icon-sm')}</a>`:'Non disponibile'}</div></div></div>${meetingAction||deleteAction?`<div class="seg-mobile-meeting-action seg-mobile-actions">${meetingAction}${deleteAction}</div>`:''}</article>`}).join('')}</div>`;
  $('table-container').innerHTML=desktop+mobile}
 function updateStatus(select){const id=select.dataset.id,index=Number(select.dataset.index),next=select.value,row=segnalazioni[index];if(!isCoord||!id||!row)return;const prev=row.Stato||'Aperta';row.Stato=next;select.disabled=true;apiRequest('stato',{id,stato:next},resp=>{select.disabled=false;if(!apiSucceeded(resp)){row.Stato=prev;renderSegnalazioni();apiError(resp?.message||'Stato non aggiornato. Riprova.');return}stampUpdate('seg-updated');renderSegnalazioni();showToast('Segnalazione aggiornata')})}

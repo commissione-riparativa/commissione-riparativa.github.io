@@ -108,3 +108,15 @@ Solo il coordinatore vede il comando `Elimina`.
 - È possibile collegare più incontri alla stessa segnalazione.
 - Le segnalazioni concluse mostrano solo il numero di incontri collegati e non propongono nuovi incontri.
 - Il comando `Elimina` resta disponibile ma visivamente secondario.
+
+
+## V24 — Segnalazioni più compatte
+
+- desktop: righe più basse e colonna Azioni più ampia;
+- `Apri risposta`, stato incontri e pulsanti sono organizzati in massimo due righe compatte;
+- nessun incontro: `Crea incontro`;
+- incontri già collegati: conteggio + `Nuovo incontro`;
+- gli incontri nuovi sono riconosciuti tramite `Segnalazione ID`;
+- compatibilità migliorata per incontri storici senza ID, evitando associazioni ambigue;
+- numeri dei filtri: rosso = da prendere in carico, giallo = in percorso, verde = concluse;
+- cache PWA aggiornata e meta versione UI impostata a 24.
