@@ -1,3 +1,14 @@
+
+function registerServiceWorker(){
+  if(!('serviceWorker' in navigator))return;
+  window.addEventListener('load',()=>{
+    navigator.serviceWorker.register('./sw.js').catch(err=>{
+      console.warn('Service worker non registrato:',err);
+    });
+  },{once:true});
+}
+registerServiceWorker();
+
 const API='https://script.google.com/macros/s/AKfycbxxh2IxU5RsMRaH2jJSLz-zjQ7HQOHy6bClaDVQ9wSSlM2bWFsoKW--2ECeWyqQAf9D/exec';
 const API_TIMEOUT_MS=12000;
 const DEFAULT_MEMBERS=['Filippo Colluto','Anna Ferrari','Marco Bianchi','Sara Conti','Luca Esposito','Giulia Ricci','Paolo Marino','Elena Romano','Davide Bruno','Chiara Gallo','Fabio Costa','Marta Fontana','Andrea Russo','Valentina Moro','Stefano Serra','Irene Lombardi'];

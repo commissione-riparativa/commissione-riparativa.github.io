@@ -28,3 +28,28 @@ serve solo a rendere il progetto più leggibile e facile da modificare in VS Cod
 - Non caricare `Code.gs`, esportazioni dei fogli, token o credenziali.
 - Il backend rimane Google Apps Script.
 - L'URL del backend è già configurato in `app.js`.
+
+## PWA
+
+Il progetto include ora:
+
+- `manifest.webmanifest`
+- `sw.js`
+- `icons/icon-192.png`
+- `icons/icon-512.png`
+- `icons/apple-touch-icon.png`
+- `icons/icon.svg`
+
+### Installazione
+
+**iPhone / iPad**
+1. Apri il sito in Safari.
+2. Tocca Condividi.
+3. Scegli `Aggiungi alla schermata Home`.
+
+**Android**
+1. Apri il sito in Chrome.
+2. Usa `Installa app` / `Aggiungi alla schermata Home` quando disponibile.
+
+La PWA memorizza in cache solo i file dell'interfaccia. Le chiamate al backend Google Apps Script non vengono memorizzate dal service worker.
+
