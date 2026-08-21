@@ -68,3 +68,15 @@ Questa revisione alleggerisce la sezione Incontri senza cambiare il backend:
 - disponibilità personale e disponibilità del gruppo separate in blocchi distinti;
 - segnalazione collegata resa più discreta;
 - incontri futuri e conclusi separati in stack distinti.
+
+
+## V20 — Incontro rapido dalla segnalazione
+
+Per il coordinatore, una segnalazione non conclusa e senza incontri collegati
+mostra ora il pulsante `Crea incontro`.
+
+Il pulsante apre il normale modulo `Nuovo incontro` con la segnalazione già
+selezionata. Quando viene creato l'incontro, la segnalazione mostra
+`Incontro collegato` e il pulsante rapido scompare.
+
+Non sono state aggiunte nuove API al backend.

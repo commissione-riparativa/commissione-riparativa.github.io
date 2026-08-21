@@ -351,3 +351,33 @@ tbody tr:hover td{background:#fafaf8}
   .member-editor-fields input,.member-editor-fields select{min-height:46px!important}
   .members-editor{max-height:55vh}
 }
+
+
+/* V20 — Azione rapida: crea incontro dalla segnalazione */
+.seg-row-actions{display:flex;flex-direction:column;align-items:flex-start;gap:7px}
+.seg-row-actions a{display:inline-flex;align-items:center;gap:4px}
+.seg-quick-meeting{
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  min-height:34px;padding:6px 10px;border:1px solid #cfe3da;border-radius:9px;
+  background:#f1f8f5;color:#17664f;font:inherit;font-size:12px;font-weight:600;
+  cursor:pointer;transition:background .15s,border-color .15s,transform .08s;
+}
+.seg-quick-meeting:hover{background:#e9f4ef;border-color:#bad8cb}
+.seg-quick-meeting:active{transform:scale(.98)}
+.seg-meeting-linked{
+  display:inline-flex;align-items:center;gap:5px;padding:5px 8px;border-radius:8px;
+  background:#f5f6f3;color:#70736d;font-size:11px;font-weight:500;line-height:1.25
+}
+.seg-mobile-meeting-action{
+  margin-top:3px;padding-top:12px;border-top:1px solid #edf0eb;
+}
+.seg-mobile-meeting-action .seg-quick-meeting{
+  width:100%;min-height:46px;font-size:13px;
+}
+.seg-mobile-meeting-action .seg-meeting-linked{
+  width:100%;min-height:40px;justify-content:center;
+}
+@media(max-width:700px){
+  .seg-row-actions{gap:6px}
+}
+
