@@ -131,3 +131,12 @@ Solo il coordinatore vede il comando `Elimina`.
 - rimangono anche `Annulla` e il tap sullo sfondo;
 - Gestione membri ed Esci sono ora due icone compatte nell'header mobile;
 - cache PWA aggiornata alla v26.
+
+
+## V27 — desktop + microinterazioni
+- incontri compatti anche su desktop, con riepilogo e dettagli apribili;
+- reset automatico dei dettagli incontro quando si cambia pagina;
+- transizione lieve per modali/pannelli;
+- azioni delle segnalazioni allineate e più simmetriche su desktop;
+- nuove etichette di stato: Nuove / In corso / Concluse;
+- barre disponibilità a tre colori: verde, rosso e giallo.
