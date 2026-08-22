@@ -178,3 +178,13 @@ Solo il coordinatore vede il comando `Elimina`.
 - avviso discreto quando è disponibile una nuova versione PWA;
 - limite globale agli invii OTP per proteggere la quota email;
 - alcuni override CSS obsoleti sono stati rimossi.
+
+
+## Versione 32 — rifiniture finali
+
+- eliminato il piccolo flash nel passaggio tra Segnalazioni, Incontri e Bacheca;
+- mantenuta la pillola animata della navigazione;
+- i pulsanti "Ci sono" e "Non posso" restano visibili anche quando un incontro non è espanso;
+- colori di "Nuova" e "In corso" resi più distinguibili;
+- Segnalazioni desktop ridisegnate come schede orizzontali, coerenti con le card mobile;
+- nessuna modifica al backend: resta compatibile con Apps Script v3.5.
