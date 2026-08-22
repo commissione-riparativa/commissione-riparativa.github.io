@@ -1,14 +1,14 @@
 <!DOCTYPE html>
 <html lang="it">
 <head>
-  <meta name="app-ui-version" content="34">
+  <meta name="app-ui-version" content="36">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="referrer" content="no-referrer">
 <meta name="theme-color" content="#f6f7f4">
 <title>Giustizia Riparativa</title>
-<link rel="stylesheet" href="style.css?v=34">
-<link rel="manifest" href="manifest.webmanifest?v=34">
+<link rel="stylesheet" href="style.css?v=36">
+<link rel="manifest" href="manifest.webmanifest?v=36">
 <link rel="icon" href="icons/favicon-bilancia-v2.png" type="image/png">
 <link rel="apple-touch-icon" href="icons/apple-touch-bilancia-v2.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -109,6 +109,8 @@
       </nav>
     </div>
 
+    <div class="page-viewport" id="page-viewport">
+      <div class="page-track" id="page-track">
     <section id="page-segnalazioni" class="page active" aria-labelledby="nav-segnalazioni">
       <div class="stats" id="seg-filters" aria-label="Filtra le segnalazioni per stato">
         <button class="stat stat-all active" type="button" data-filter="all" aria-pressed="true"><span class="stat-label">Tutte</span><span class="stat-value" id="stat-total">—</span></button>
@@ -131,6 +133,8 @@
       <div id="avvisi-list" class="notice-list" aria-live="polite"></div>
       <div class="refresh-row"><span class="updated-at" id="avvisi-updated">Non ancora aggiornato</span><button class="btn-small" id="refresh-avvisi" type="button"><svg class="icon" aria-hidden="true"><use href="#i-refresh"></use></svg>Aggiorna</button></div>
     </section>
+      </div>
+    </div>
   </main>
 </div>
 
@@ -216,5 +220,5 @@
 
 <div class="update-banner" id="update-banner" hidden role="status" aria-live="polite"><span>È disponibile una nuova versione.</span><button type="button" id="update-now">Aggiorna</button></div>
 <div id="toast" class="toast" role="status" aria-live="polite" aria-atomic="true"></div>
-<script src="app.js?v=34"></script></body>
+<script src="app.js?v=36"></script></body>
 </html>

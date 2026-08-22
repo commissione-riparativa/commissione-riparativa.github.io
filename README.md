@@ -207,3 +207,19 @@ Solo il coordinatore vede il comando `Elimina`.
 - swipe mobile riscritto usando Pointer Events con fallback touch per maggiore affidabilità su iPhone/Android;
 - soglia dello swipe leggermente ridotta, mantenendo la protezione dai gesti verticali e dai controlli interattivi;
 - mantenuti i colori più distinti per Nuova e In corso.
+
+
+## v35 — navigazione semplificata
+- Rimosso lo swipe tra Segnalazioni, Incontri e Bacheca: sui telefoni risultava troppo facile da attivare in modo involontario e poco naturale con card e controlli interattivi.
+- Mantenuta la pillola animata nella navigazione: il passaggio resta fluido tramite tocco/click sui tre pulsanti.
+- Rimossi i vincoli touch-action introdotti esclusivamente per lo swipe.
+- Mantenuti i colori più distinti degli stati della v34.
+
+## v36 — scorrimento pagine fluido
+- Su smartphone Segnalazioni, Incontri e Bacheca sono tre pagine realmente affiancate in un contenitore orizzontale.
+- Lo swipe usa lo scorrimento nativo del browser con aggancio alla pagina: durante il gesto si vede la sezione accanto seguire il dito.
+- La pillola della navigazione segue in tempo reale la posizione dello scorrimento.
+- Toccando una voce della navigazione viene usato lo stesso movimento orizzontale dello swipe.
+- Lo scorrimento verticale della pagina resta naturale; i controlli interattivi non vengono usati come aree di swipe.
+- L'altezza del contenuto viene adattata alla sezione attiva per evitare grandi spazi vuoti tra pagine di lunghezza diversa.
+- Nessuna modifica al backend: resta Apps Script v3.5.

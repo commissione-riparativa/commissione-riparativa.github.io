@@ -1213,18 +1213,12 @@ textarea{resize:vertical}
 }
 
 
-/* V33 — swipe mobile e stati più riconoscibili */
+/* Stati più riconoscibili */
 :root{
   --new:#b42318;
   --new-soft:#fef0ee;
   --progress:#6f5200;
   --progress-soft:#fff7c7;
-}
-
-/* La pillola segue il dito durante lo swipe, senza inerzia artificiale. */
-.nav-indicator.swiping{transition:none!important}
-@media(max-width:700px){
-  #main-screen{touch-action:pan-y}
 }
 
 /* Nuova = rosso/corallo; In corso = giallo/ocra. Contrasto volutamente più netto. */
@@ -1242,11 +1236,51 @@ textarea{resize:vertical}
 .seg-mobile-card-compact.state-gestione{border-top-color:#d3a300!important}
 
 
-/* V34 — correzione swipe mobile */
+
+
+/* V36 — pager mobile nativo: le sezioni scorrono davvero una accanto all'altra */
+.page-viewport{position:relative;min-width:0}
 @media(max-width:700px){
-  #main-screen, #main-screen .container, #main-screen .page{
-    touch-action:pan-y pinch-zoom;
-    overscroll-behavior-x:none;
+  .page-viewport{
+    width:100%;
+    overflow-x:hidden;
+    overflow-y:hidden;
+    transition:height .28s cubic-bezier(.22,.78,.28,1);
   }
+  .page-viewport.pager-ready{
+    overflow-x:auto;
+    scroll-snap-type:x mandatory;
+    scroll-behavior:smooth;
+    overscroll-behavior-x:contain;
+    -webkit-overflow-scrolling:touch;
+    scrollbar-width:none;
+  }
+  .page-viewport.pager-ready::-webkit-scrollbar{display:none}
+  .page-viewport.height-no-transition{transition:none!important}
+  .page-viewport.pager-ready .page-track{
+    display:flex;
+    align-items:flex-start;
+    width:100%;
+  }
+  .page-viewport.pager-ready .page{
+    display:block!important;
+    flex:0 0 100%;
+    width:100%;
+    min-width:100%;
+    scroll-snap-align:start;
+    scroll-snap-stop:always;
+    opacity:1!important;
+    animation:none!important;
+    transform:none!important;
+  }
+  .page-viewport.pager-ready button,
+  .page-viewport.pager-ready a,
+  .page-viewport.pager-ready input,
+  .page-viewport.pager-ready select,
+  .page-viewport.pager-ready textarea,
+  .page-viewport.pager-ready label{touch-action:pan-y}
+  .nav-indicator{will-change:transform,width}
 }
-.nav-indicator.swiping{transition:none!important}
+@media(prefers-reduced-motion:reduce){
+  .page-viewport{scroll-behavior:auto!important;transition:none!important}
+}
