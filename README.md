@@ -130,4 +130,4 @@ Solo il coordinatore vede il comando `Elimina`.
 - su telefono il pannello membri è un bottom sheet trascinabile verso il basso per chiuderlo;
 - rimangono anche `Annulla` e il tap sullo sfondo;
 - Gestione membri ed Esci sono ora due icone compatte nell'header mobile;
-- cache PWA aggiornata alla v25.
+- cache PWA aggiornata alla v26.
