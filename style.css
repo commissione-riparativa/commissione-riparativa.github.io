@@ -615,3 +615,157 @@ tbody tr:hover td{background:#fafaf8}
   }
 }
 
+
+
+/* V25 — mobile polish */
+
+/* La pagina sotto non scorre quando un pannello/modale è aperto */
+body.dialog-scroll-locked{
+  position:fixed;
+  left:0;
+  right:0;
+  width:100%;
+  overflow:hidden;
+}
+
+/* Azioni account: leggere, icon-only, più contemporanee */
+.mobile-account{
+  align-items:center;
+  gap:3px;
+}
+.mobile-icon-action{
+  width:38px;
+  height:38px;
+  display:grid;
+  place-items:center;
+  border:0;
+  border-radius:11px;
+  background:transparent;
+  color:#5c625e;
+  cursor:pointer;
+  transition:background .15s ease,color .15s ease,transform .08s ease;
+}
+.mobile-icon-action .icon{width:18px;height:18px}
+.mobile-icon-action:hover,
+.mobile-icon-action:focus-visible{
+  background:#eef3ef;
+  color:#17664f;
+}
+.mobile-icon-action:active{transform:scale(.94)}
+.mobile-icon-logout:hover,
+.mobile-icon-logout:focus-visible{
+  background:#fff1ef;
+  color:#a9473f;
+}
+
+/* Loading Gestione membri */
+.members-loading{
+  min-height:180px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:12px;
+  text-align:left;
+  color:#626863;
+}
+.members-loading .spinner{
+  flex:0 0 auto;
+  width:25px;
+  height:25px;
+}
+.members-loading strong{
+  display:block;
+  font-size:13.5px;
+  font-weight:600;
+  color:#343936;
+}
+.members-loading span{
+  display:block;
+  margin-top:3px;
+  font-size:11.5px;
+  color:#858a85;
+}
+.members-load-failed{
+  min-height:160px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:7px;
+  text-align:center;
+  color:#777c77;
+}
+.members-load-failed strong{font-size:13px;color:#414641}
+.members-load-failed span{font-size:11.5px}
+
+/* Il comando incontro su mobile non tocca più il bordo della card */
+@media(max-width:700px){
+  .mobile-account{display:flex}
+
+  .seg-mobile-meeting-action{
+    margin:2px 11px 10px;
+    padding:8px 0 0;
+    border-top:1px solid #edf0eb;
+  }
+  .seg-mobile-body + .seg-mobile-meeting-action{
+    margin-top:0;
+  }
+
+  /* Bottom sheet Gestione membri */
+  .members-sheet-bg{
+    --sheet-drag:0;
+    background:rgba(19,25,21,calc(.38 - (var(--sheet-drag) * .16)));
+    backdrop-filter:blur(calc(3px - (var(--sheet-drag) * 1.5px)));
+    overscroll-behavior:none;
+  }
+  .members-modal{
+    position:relative;
+    display:flex;
+    flex-direction:column;
+    max-height:92dvh!important;
+    overflow:hidden!important;
+    padding-top:9px!important;
+    will-change:transform;
+    touch-action:pan-y;
+  }
+  .sheet-grabber{
+    flex:0 0 auto;
+    height:18px;
+    display:flex;
+    align-items:flex-start;
+    justify-content:center;
+    margin:-2px -4px 4px;
+    touch-action:none;
+  }
+  .sheet-grabber span{
+    width:38px;
+    height:4px;
+    border-radius:999px;
+    background:#d6d9d4;
+  }
+  .members-modal h3,
+  .members-modal .members-note,
+  .members-modal .members-add-row,
+  .members-modal .form-error,
+  .members-modal .modal-btns{
+    flex:0 0 auto;
+  }
+  .members-editor{
+    flex:1 1 auto;
+    min-height:0;
+    max-height:none!important;
+    overflow-y:auto;
+    overscroll-behavior:contain;
+    -webkit-overflow-scrolling:touch;
+    padding-right:2px;
+  }
+  .members-modal .modal-btns{
+    padding-top:2px;
+    margin-top:12px;
+  }
+}
+
+@media(max-width:380px){
+  .mobile-icon-action{width:36px;height:36px}
+}
+

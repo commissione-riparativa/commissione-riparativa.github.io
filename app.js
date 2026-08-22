@@ -2,7 +2,7 @@
 function registerServiceWorker(){
   if(!('serviceWorker' in navigator))return;
   window.addEventListener('load',()=>{
-    navigator.serviceWorker.register('./sw.js?v=24').catch(err=>{
+    navigator.serviceWorker.register('./sw.js?v=25').catch(err=>{
       console.warn('Service worker non registrato:',err);
     });
   },{once:true});
@@ -23,6 +23,9 @@ let segnalazioni=[],incontri=[],disponibilita=[];
 let editingId=null,deletingId=null,deletingSegId=null,deletingMembroIdx=null,currentSegFilter='all',showPastMeetings=false,openPanels={},pendingLoginEmail='';
 let cbN=0,loadingSeg=false,loadingInc=false,incontriLoadedOnce=false;
 const dialogReturnFocus=new Map();
+let pageScrollLocked=false,lockedPageScrollY=0;
+let membersLoading=false;
+let memberSheetDrag={active:false,dragging:false,startY:0,lastY:0,lastT:0,delta:0,scrollEl:null};
 let DEMO_SEGNALAZIONI=[
  {ID:'seg_demo_1',Data:'2026-08-18',Componente:'Componente Studenti',Recapito:'studente@example.it',Stato:'Aperta','Link Risposta':''},
  {ID:'seg_demo_2',Data:'2026-08-14',Componente:'Componente Adulti',Recapito:'adulto@example.it',Stato:'In gestione','Link Risposta':'https://example.com/risposta'},
@@ -390,8 +393,8 @@ function showMain(){
   loadIncontri();
 }
 function showPage(id){document.querySelectorAll('.page').forEach(p=>p.classList.toggle('active',p.id==='page-'+id));document.querySelectorAll('.nav-wrap button').forEach(b=>{const active=b.dataset.page===id;b.classList.toggle('active',active);if(active)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current')});closeMobileMenu()}
-function toggleMobileMenu(){const menu=$('mobile-account-menu'),trigger=$('mobile-menu-trigger'),open=!menu.classList.contains('open');menu.classList.toggle('open',open);trigger.setAttribute('aria-expanded',open?'true':'false')}
-function closeMobileMenu(){$('mobile-account-menu').classList.remove('open');$('mobile-menu-trigger').setAttribute('aria-expanded','false')}
+function toggleMobileMenu(){return}
+function closeMobileMenu(){return}
 function setNetworkState(){const offline=!navigator.onLine;$('network-banner').classList.toggle('visible',offline)}
 
 function setSegFilter(filter){currentSegFilter=filter;document.querySelectorAll('#seg-filters .stat').forEach(b=>{const a=b.dataset.filter===filter;b.classList.toggle('active',a);b.setAttribute('aria-pressed',a?'true':'false')});renderSegnalazioni()}
@@ -453,8 +456,37 @@ function updateMeetingState(id){const counts=dispCounts(id),pct=counts.total?Mat
 function saveAvailability(id,response){if(!navigator.onLine&&!DEMO_MODE){apiError('Sei offline. Riprova quando la connessione è disponibile.');return}const matches=disponibilita.map((d,i)=>({d,i})).filter(x=>x.d.membro===currentUser&&String(x.d.incontro)===String(id)),idx=matches.length?matches.at(-1).i:-1,old=idx>=0?{...disponibilita[idx]}:null;if(idx>=0)disponibilita[idx].risposta=response;else disponibilita.push({membro:currentUser,incontro:id,risposta:response});updateMeetingState(id);setAvailabilitySaving(id,response,true);apiRequest('salva',{membro:currentUser,incontro:id,risposta:response},resp=>{setAvailabilitySaving(id,response,false);if(!apiSucceeded(resp)){const now=disponibilita.map((d,i)=>({d,i})).filter(x=>x.d.membro===currentUser&&String(x.d.incontro)===String(id)).at(-1)?.i;if(old&&now!==undefined)disponibilita[now]=old;else if(!old&&now!==undefined)disponibilita.splice(now,1);updateMeetingState(id);apiError(resp?.message||'Disponibilità non salvata.');return}stampUpdate('inc-updated');showToast(response==='si'?'Disponibilità salvata: ci sei':'Disponibilità salvata: non puoi')})}
 function setAvailabilitySaving(id,response,saving){for(const type of ['yes','no']){const b=$(type==='yes'?'btn-yes-'+id:'btn-no-'+id);if(!b)continue;b.disabled=saving;const activeResponse=type==='yes'?'si':'no';b.innerHTML=saving&&response===activeResponse?'Salvataggio…':icon(type==='yes'?'check':'x')+(type==='yes'?'Ci sono':'Non posso')}}
 
-function openDialog(id,focusSelector){dialogReturnFocus.set(id,document.activeElement);const bg=$(id);bg.classList.add('open');setTimeout(()=>bg.querySelector(focusSelector)?.focus(),20)}
-function closeDialog(id){const bg=$(id);bg.classList.remove('open');const prev=dialogReturnFocus.get(id);dialogReturnFocus.delete(id);if(prev&&document.contains(prev))prev.focus()}
+function syncPageScrollLock(){
+  const shouldLock=!!document.querySelector('.modal-bg.open,.confirm-bg.open');
+  if(shouldLock&&!pageScrollLocked){
+    pageScrollLocked=true;
+    lockedPageScrollY=window.scrollY||document.documentElement.scrollTop||0;
+    document.body.classList.add('dialog-scroll-locked');
+    document.body.style.top=`-${lockedPageScrollY}px`;
+  }else if(!shouldLock&&pageScrollLocked){
+    const y=lockedPageScrollY;
+    pageScrollLocked=false;
+    document.body.classList.remove('dialog-scroll-locked');
+    document.body.style.top='';
+    window.scrollTo(0,y);
+  }
+}
+function openDialog(id,focusSelector){
+  dialogReturnFocus.set(id,document.activeElement);
+  const bg=$(id);
+  bg.classList.add('open');
+  syncPageScrollLock();
+  setTimeout(()=>bg.querySelector(focusSelector)?.focus(),20);
+}
+function closeDialog(id){
+  const bg=$(id);
+  bg.classList.remove('open');
+  if(id==='modal-impostazioni')resetMembersSheetPosition();
+  syncPageScrollLock();
+  const prev=dialogReturnFocus.get(id);
+  dialogReturnFocus.delete(id);
+  if(prev&&document.contains(prev))prev.focus();
+}
 function openMeetingModal(inc=null,preselectedSegId=''){editingId=inc?.id||null;$('modal-title').textContent=inc?'Modifica incontro':'Nuovo incontro';$('modal-data').value=inc?isoDate(meetingDate(inc)):'';$('modal-orario').value=inc?.orario||'';$('modal-luogo').value=inc?.luogo||'';$('modal-segnalazione').value=inc?.segnalazioneId||preselectedSegId||'';$('modal-error').classList.remove('visible');$('modal-error').textContent='';openDialog('modal-bg','#modal-data')}
 function closeMeetingModal(){setMeetingSaving(false);closeDialog('modal-bg')}
 function setMeetingSaving(v){const b=$('btn-salva-incontro');b.disabled=v;b.textContent=v?'Salvataggio…':'Salva'}
@@ -464,17 +496,134 @@ function askDeleteMeeting(id){if(!isCoord)return;deletingId=id;openDialog('confi
 function confirmDeleteMeeting(){if(!isCoord||!deletingId)return;if(!navigator.onLine&&!DEMO_MODE){apiError('Sei offline.');return}const id=deletingId,old=[...incontri];incontri=incontri.filter(i=>String(i.id)!==String(id));delete openPanels[id];closeDeleteMeeting();renderIncontri();apiRequest('elimina_incontro',{id},resp=>{if(!apiSucceeded(resp)){incontri=old;renderIncontri();apiError(resp?.message||'Incontro non eliminato.');return}stampUpdate('inc-updated');showToast('Incontro eliminato')})}
 function closeDeleteMeeting(){deletingId=null;closeDialog('confirm-bg')}
 
+
+function resetMembersSheetPosition(){
+  const sheet=document.querySelector('#modal-impostazioni .members-modal');
+  const bg=$('modal-impostazioni');
+  if(sheet){
+    sheet.style.transition='';
+    sheet.style.transform='';
+  }
+  if(bg)bg.style.removeProperty('--sheet-drag');
+  memberSheetDrag={active:false,dragging:false,startY:0,lastY:0,lastT:0,delta:0,scrollEl:null};
+}
+function finishMembersSheetDrag(){
+  const sheet=document.querySelector('#modal-impostazioni .members-modal');
+  const bg=$('modal-impostazioni');
+  if(!sheet)return;
+
+  const now=performance.now();
+  const dt=Math.max(1,now-memberSheetDrag.lastT);
+  const velocity=(memberSheetDrag.delta-(memberSheetDrag.lastY-memberSheetDrag.startY))/dt;
+  const shouldClose=memberSheetDrag.delta>105||velocity>.55;
+
+  sheet.style.transition='transform .2s cubic-bezier(.22,.8,.3,1)';
+  if(shouldClose){
+    sheet.style.transform='translateY(105%)';
+    if(bg)bg.style.setProperty('--sheet-drag','1');
+    setTimeout(()=>closeMembers(),190);
+  }else{
+    sheet.style.transform='translateY(0)';
+    if(bg)bg.style.setProperty('--sheet-drag','0');
+    setTimeout(()=>resetMembersSheetPosition(),210);
+  }
+  memberSheetDrag.active=false;
+  memberSheetDrag.dragging=false;
+}
+function setupMembersSheetGesture(){
+  const sheet=document.querySelector('#modal-impostazioni .members-modal');
+  if(!sheet)return;
+
+  sheet.addEventListener('touchstart',e=>{
+    if(window.innerWidth>700||e.touches.length!==1)return;
+    if(e.target.closest('input,select,textarea,button,a'))return;
+
+    const scrollEl=e.target.closest('.members-editor');
+    if(scrollEl&&scrollEl.scrollTop>0)return;
+
+    const y=e.touches[0].clientY;
+    memberSheetDrag={
+      active:true,dragging:false,startY:y,lastY:y,lastT:performance.now(),delta:0,scrollEl:scrollEl||null
+    };
+    sheet.style.transition='none';
+  },{passive:true});
+
+  sheet.addEventListener('touchmove',e=>{
+    if(!memberSheetDrag.active||e.touches.length!==1)return;
+    if(memberSheetDrag.scrollEl&&memberSheetDrag.scrollEl.scrollTop>0)return;
+
+    const y=e.touches[0].clientY;
+    const delta=y-memberSheetDrag.startY;
+    memberSheetDrag.lastY=y;
+    memberSheetDrag.lastT=performance.now();
+
+    if(delta<=0){
+      if(memberSheetDrag.dragging){
+        memberSheetDrag.delta=0;
+        sheet.style.transform='translateY(0)';
+      }
+      return;
+    }
+
+    memberSheetDrag.dragging=true;
+    memberSheetDrag.delta=delta;
+    e.preventDefault();
+
+    const eased=Math.min(delta*.9,window.innerHeight*.62);
+    sheet.style.transform=`translateY(${eased}px)`;
+    const bg=$('modal-impostazioni');
+    if(bg)bg.style.setProperty('--sheet-drag',String(Math.min(1,eased/300)));
+  },{passive:false});
+
+  sheet.addEventListener('touchend',()=>{
+    if(!memberSheetDrag.active)return;
+    if(memberSheetDrag.dragging)finishMembersSheetDrag();
+    else resetMembersSheetPosition();
+  },{passive:true});
+
+  sheet.addEventListener('touchcancel',()=>{
+    if(memberSheetDrag.active)resetMembersSheetPosition();
+  },{passive:true});
+}
+
+function setMembersLoading(v){
+  membersLoading=v;
+  const root=$('lista-membri'),add=$('btn-add-member'),save=$('members-save');
+  if(v){
+    root.innerHTML=`<div class="members-loading" role="status"><div class="spinner" aria-hidden="true"></div><div><strong>Caricamento membri</strong><span>Sto aggiornando l’elenco…</span></div></div>`;
+    add.hidden=true;
+    save.disabled=true;
+    save.textContent='Caricamento…';
+  }else{
+    add.hidden=false;
+    save.disabled=false;
+    save.textContent='Salva modifiche';
+  }
+}
 function openMembers(){
   if(!isCoord)return;
+  membersDraft=[];
   $('members-error').classList.remove('visible');$('members-error').textContent='';
+  setMembersLoading(true);
+  openDialog('modal-impostazioni','#members-cancel');
+
   apiRequest('gestione_membri',{},rows=>{
-    if(!Array.isArray(rows)){apiError(rows?.message||'Impossibile caricare i membri.');return}
+    setMembersLoading(false);
+    if(!Array.isArray(rows)){
+      $('lista-membri').innerHTML=`<div class="members-load-failed">${icon('warning','icon icon-lg')}<strong>Impossibile caricare i membri</strong><span>Chiudi il pannello e riprova tra poco.</span></div>`;
+      apiError(rows?.message||'Impossibile caricare i membri.');
+      return;
+    }
     membersDraft=rows.map(x=>({...x}));
     renderMembers();
-    openDialog('modal-impostazioni','.member-editor-name');
+    setTimeout(()=>$('lista-membri').querySelector('.member-editor-name')?.focus(),30);
   });
 }
-function closeMembers(){membersDraft=[];closeDialog('modal-impostazioni')}
+function closeMembers(){
+  membersDraft=[];
+  membersLoading=false;
+  closeDialog('modal-impostazioni');
+}
 function renderMembers(){
   const root=$('lista-membri');
   root.innerHTML=membersDraft.map((m,i)=>{
@@ -495,6 +644,7 @@ function renderMembers(){
   }).join('');
 }
 function addMember(){
+  if(membersLoading)return;
   membersDraft.push({id:'',nome:'',email:'',ruolo:'membro',attivo:true});
   renderMembers();
   const inputs=$('lista-membri').querySelectorAll('.member-editor-name');
@@ -514,7 +664,7 @@ function confirmRemoveMember(){
 }
 function cancelRemoveMember(){deletingMembroIdx=null;closeDialog('confirm-membro-bg')}
 function saveMembers(){
-  if(!isCoord)return;
+  if(!isCoord||membersLoading)return;
   const error=$('members-error');
   error.classList.remove('visible');error.textContent='';
   for(const m of membersDraft){
@@ -609,7 +759,6 @@ window.addEventListener('DOMContentLoaded',()=>{
   $('btn-impostazioni').addEventListener('click',openMembers);
   $('btn-logout').addEventListener('click',logout);
 
-  $('mobile-menu-trigger').addEventListener('click',e=>{e.stopPropagation();toggleMobileMenu()});
   $('mobile-btn-impostazioni').addEventListener('click',()=>{closeMobileMenu();openMembers()});
   $('mobile-btn-logout').addEventListener('click',logout);
 
@@ -625,6 +774,7 @@ window.addEventListener('DOMContentLoaded',()=>{
   $('seg-delete-confirm').addEventListener('click',confirmDeleteSeg);
   $('member-delete-cancel').addEventListener('click',cancelRemoveMember);
   $('member-delete-confirm').addEventListener('click',confirmRemoveMember);
+  setupMembersSheetGesture();
 
   document.addEventListener('click',e=>{if(!e.target.closest('.mobile-account'))closeMobileMenu()});
   window.addEventListener('online',setNetworkState);

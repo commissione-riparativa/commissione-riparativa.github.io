@@ -120,3 +120,14 @@ Solo il coordinatore vede il comando `Elimina`.
 - compatibilità migliorata per incontri storici senza ID, evitando associazioni ambigue;
 - numeri dei filtri: rosso = da prendere in carico, giallo = in percorso, verde = concluse;
 - cache PWA aggiornata e meta versione UI impostata a 24.
+
+
+## V25 — Rifinitura mobile
+
+- `Crea incontro` / `Nuovo incontro` ha margine laterale e inferiore dentro la card;
+- `Gestione membri` si apre subito e mostra una rotellina durante il caricamento;
+- la pagina sotto viene bloccata quando un pannello è aperto;
+- su telefono il pannello membri è un bottom sheet trascinabile verso il basso per chiuderlo;
+- rimangono anche `Annulla` e il tap sullo sfondo;
+- Gestione membri ed Esci sono ora due icone compatte nell'header mobile;
+- cache PWA aggiornata alla v25.

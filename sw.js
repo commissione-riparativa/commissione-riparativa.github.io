@@ -1,11 +1,11 @@
-const CACHE_NAME = 'giustizia-riparativa-pwa-v7-reports-v24';
+const CACHE_NAME = 'giustizia-riparativa-pwa-v8-mobile-v25';
 
 const APP_SHELL = [
   './',
   './index.html',
-  './style.css?v=24',
-  './app.js?v=24',
-  './manifest.webmanifest?v=24',
+  './style.css?v=25',
+  './app.js?v=25',
+  './manifest.webmanifest?v=25',
   './icons/bilancia-192-v2.png',
   './icons/bilancia-512-v2.png',
   './icons/apple-touch-bilancia-v2.png',
