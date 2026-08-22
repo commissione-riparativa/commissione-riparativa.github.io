@@ -2,7 +2,7 @@
 function registerServiceWorker(){
   if(!('serviceWorker' in navigator))return;
   window.addEventListener('load',()=>{
-    navigator.serviceWorker.register('./sw.js?v=29').catch(err=>{
+    navigator.serviceWorker.register('./sw.js?v=30').catch(err=>{
       console.warn('Service worker non registrato:',err);
     });
   },{once:true});
@@ -25,6 +25,7 @@ let cbN=0,loadingSeg=false,loadingInc=false,loadingAvvisi=false,incontriLoadedOn
 const dialogReturnFocus=new Map();
 let pageScrollLocked=false,lockedPageScrollY=0;
 let membersLoading=false;
+let noticePollTimer=null;
 let memberSheetDrag={active:false,dragging:false,startY:0,lastY:0,lastT:0,delta:0,scrollEl:null};
 let DEMO_SEGNALAZIONI=[
  {ID:'seg_demo_1',Data:'2026-08-18',Componente:'Componente Studenti',Recapito:'studente@example.it',Stato:'Aperta','Link Risposta':''},
@@ -171,22 +172,35 @@ function deleteSegIconAction(r){
   return `<button class="seg-trash-corner" type="button" data-action="delete-seg" data-seg-id="${escapeAttr(r.ID)}" aria-label="Elimina segnalazione" title="Elimina segnalazione">${icon('trash','icon icon-sm')}</button>`;
 }
 function quickMeetingAction(r){
-  if(!isCoord||!r?.ID)return '';
+  if(!r?.ID)return '';
   const closed=(r.Stato||'Aperta')==='Chiusa';
   const linked=incontriLoadedOnce?linkedMeetingsForSeg(r):[];
   const count=linked.length;
+  const target=linked.find(i=>!isPast(i))||linked.at(-1)||null;
+  const linkedAction=count&&target
+    ?`<button class="seg-meeting-state seg-linked-meeting" type="button" data-action="open-linked-meeting" data-meeting-id="${escapeAttr(target.id)}" title="Apri l’incontro collegato a questa segnalazione">${icon('calendar','icon icon-sm')}<span>${count} ${count===1?'incontro collegato':'incontri collegati'}</span>${icon('chevron-right','icon icon-sm seg-link-chevron')}</button>`
+    :'';
 
-  if(closed){
-    return count
-      ?`<span class="seg-meeting-state">${icon('calendar','icon icon-sm')}<span>${count} ${count===1?'incontro':'incontri'}</span></span>`
-      :'';
-  }
+  if(!isCoord||closed)return linkedAction;
 
-  if(count){
-    return `<span class="seg-meeting-state">${icon('calendar','icon icon-sm')}<span>${count} ${count===1?'incontro':'incontri'}</span></span><button class="seg-quick-meeting secondary" type="button" data-action="quick-meeting" data-seg-id="${escapeAttr(r.ID)}">${icon('plus','icon icon-sm')}<span>Nuovo incontro</span></button>`;
-  }
-
-  return `<button class="seg-quick-meeting" type="button" data-action="quick-meeting" data-seg-id="${escapeAttr(r.ID)}">${icon('calendar','icon icon-sm')}<span>Crea incontro</span></button>`;
+  const createAction=`<button class="seg-quick-meeting${count?' secondary':''}" type="button" data-action="quick-meeting" data-seg-id="${escapeAttr(r.ID)}">${icon(count?'plus':'calendar','icon icon-sm')}<span>${count?'Nuovo incontro':'Crea incontro'}</span></button>`;
+  return linkedAction+createAction;
+}
+function openLinkedMeeting(meetingId){
+  const inc=incontri.find(i=>String(i.id)===String(meetingId||''));
+  if(!inc){apiError('Incontro collegato non trovato.');return}
+  if(isPast(inc))showPastMeetings=true;
+  showPage('incontri');
+  openMeetingCardId=String(inc.id);
+  renderIncontri();
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    const card=[...document.querySelectorAll('.inc-card[data-meeting-id]')].find(x=>String(x.dataset.meetingId)===String(inc.id));
+    if(!card)return;
+    setMeetingCardOpen(String(inc.id),true);
+    card.scrollIntoView({behavior:'smooth',block:'center'});
+    card.classList.add('linked-arrival');
+    setTimeout(()=>card.classList.remove('linked-arrival'),1100);
+  }));
 }
 function openQuickMeeting(segId){
   const seg=segnalazioni.find(r=>String(r.ID||'')===String(segId||''));
@@ -410,8 +424,9 @@ function showMain(){
   loadSegnalazioni();
   loadIncontri();
   loadAvvisi(true);
+  startNoticePolling();
 }
-function showPage(id){openMeetingCardId='';openPanels={};if(currentUser&&$('incontri-list'))renderIncontri();document.querySelectorAll('.page').forEach(p=>p.classList.toggle('active',p.id==='page-'+id));document.querySelectorAll('.nav-wrap button').forEach(b=>{const active=b.dataset.page===id;b.classList.toggle('active',active);if(active)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current')});if(id==='bacheca'){if(!avvisiLoadedOnce)loadAvvisi();else renderAvvisi();setTimeout(markAvvisiSeen,250)}closeMobileMenu()}
+function showPage(id){openMeetingCardId='';openPanels={};if(currentUser&&$('incontri-list'))renderIncontri();document.querySelectorAll('.page').forEach(p=>p.classList.toggle('active',p.id==='page-'+id));document.querySelectorAll('.nav-wrap button').forEach(b=>{const active=b.dataset.page===id;b.classList.toggle('active',active);if(active)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current')});if(id==='bacheca'){if(!avvisiLoadedOnce)loadAvvisi(false,true);else{renderAvvisi();markAvvisiSeen()}}closeMobileMenu()}
 function toggleMobileMenu(){return}
 function closeMobileMenu(){return}
 function setNetworkState(){const offline=!navigator.onLine;$('network-banner').classList.toggle('visible',offline)}
@@ -421,7 +436,7 @@ function loadSegnalazioni(){if(loadingSeg)return;loadingSeg=true;$('refresh-segn
 function populateSegSelect(){const sel=$('modal-segnalazione');const sorted=[...segnalazioni].sort((a,b)=>segTimestamp(b.Data)-segTimestamp(a.Data));sel.innerHTML='<option value="">— Nessuna segnalazione —</option>'+sorted.map(r=>`<option value="${escapeAttr(r.ID||'')}">${escapeHtml(dateLong(r.Data)+' · '+componentDisplay(r.Componente)+(r.Recapito?' · '+r.Recapito:''))}</option>`).join('')}
 function statusMarkup(r,index){if(!isCoord)return `<span class="badge ${statusClass(r.Stato)}">${escapeHtml(statusLabel(r.Stato||'Aperta'))}</span>`;return `<select class="stato-sel" data-id="${escapeAttr(r.ID||'')}" data-index="${index}" aria-label="Stato della segnalazione"><option value="Aperta" ${(r.Stato||'Aperta')==='Aperta'?'selected':''}>Nuova</option><option value="In gestione" ${r.Stato==='In gestione'?'selected':''}>In corso</option><option value="Chiusa" ${r.Stato==='Chiusa'?'selected':''}>Conclusa</option></select>`}
 function renderSegnalazioni(){const all=[...segnalazioni].sort((a,b)=>segTimestamp(b.Data)-segTimestamp(a.Data));const counts={all:all.length,'Aperta':all.filter(r=>(r.Stato||'Aperta')==='Aperta').length,'In gestione':all.filter(r=>r.Stato==='In gestione').length,'Chiusa':all.filter(r=>r.Stato==='Chiusa').length};$('stat-total').textContent=counts.all;$('stat-aperte').textContent=counts.Aperta;$('stat-gestione').textContent=counts['In gestione'];$('stat-chiuse').textContent=counts.Chiusa;const rows=currentSegFilter==='all'?all:all.filter(r=>(r.Stato||'Aperta')===currentSegFilter);if(!all.length){$('table-container').innerHTML=emptyState('report','Nessuna segnalazione','Le nuove segnalazioni appariranno qui.');return}if(!rows.length){$('table-container').innerHTML=emptyState('report','Nessuna segnalazione in questa categoria','Scegli un altro filtro per vedere le altre segnalazioni.');return}
- const desktop=`<div class="seg-desktop-table"><table aria-label="Segnalazioni ricevute"><thead><tr><th scope="col" style="width:17%">Data</th><th scope="col" style="width:16%">Componente</th><th scope="col" style="width:15%">Contatto</th><th scope="col" style="width:22%">Stato</th><th scope="col" style="width:30%">Azioni</th></tr></thead><tbody>${rows.map(r=>{const i=segnalazioni.indexOf(r),url=safeExternalUrl(r['Link Risposta']),meetingAction=quickMeetingAction(r),deleteAction=deleteSegAction(r);return `<tr><td>${escapeHtml(dateLong(r.Data))}</td><td><span class="badge ${componentClass(r.Componente)}">${escapeHtml(componentDisplay(r.Componente))}</span></td><td>${escapeHtml(r.Recapito||'—')}</td><td>${statusMarkup(r,i)}</td><td><div class="seg-row-actions${isCoord?'':' member-only'}"><div class="seg-action-info">${url?`<a class="seg-response-link" href="${escapeAttr(url)}" target="_blank" rel="noopener noreferrer">Apri risposta ${icon('external','icon icon-sm')}</a>`:''}${meetingAction.includes('seg-meeting-state')?meetingAction.match(/<span class="seg-meeting-state">[\s\S]*?<\/span>/)?.[0]||'':''}</div><div class="seg-action-buttons">${meetingAction.includes('seg-quick-meeting')?meetingAction.replace(/<span class="seg-meeting-state">[\s\S]*?<\/span>/,''):''}${deleteAction}</div>${!url&&!meetingAction&&!deleteAction?'—':''}</div></td></tr>`}).join('')}</tbody></table></div>`;
+ const desktop=`<div class="seg-desktop-table"><table aria-label="Segnalazioni ricevute"><thead><tr><th scope="col" style="width:17%">Data</th><th scope="col" style="width:16%">Componente</th><th scope="col" style="width:15%">Contatto</th><th scope="col" style="width:22%">Stato</th><th scope="col" style="width:30%">Azioni</th></tr></thead><tbody>${rows.map(r=>{const i=segnalazioni.indexOf(r),url=safeExternalUrl(r['Link Risposta']),meetingAction=quickMeetingAction(r),deleteAction=deleteSegAction(r),linkedAction=meetingAction.match(/<button class="seg-meeting-state[\s\S]*?<\/button>/)?.[0]||'',createAction=meetingAction.replace(/<button class="seg-meeting-state[\s\S]*?<\/button>/,'');return `<tr><td>${escapeHtml(dateLong(r.Data))}</td><td><span class="badge ${componentClass(r.Componente)}">${escapeHtml(componentDisplay(r.Componente))}</span></td><td>${escapeHtml(r.Recapito||'—')}</td><td>${statusMarkup(r,i)}</td><td><div class="seg-row-actions${isCoord?'':' member-only'}"><div class="seg-action-info">${url?`<a class="seg-response-link" href="${escapeAttr(url)}" target="_blank" rel="noopener noreferrer">Apri risposta ${icon('external','icon icon-sm')}</a>`:''}${linkedAction}</div><div class="seg-action-buttons">${createAction}${deleteAction}</div>${!url&&!meetingAction&&!deleteAction?'—':''}</div></td></tr>`}).join('')}</tbody></table></div>`;
  const mobile=`<div class="seg-mobile-list" aria-label="Segnalazioni ricevute">${rows.map(r=>{const i=segnalazioni.indexOf(r),st=r.Stato||'Aperta',state=st==='Chiusa'?'state-chiusa':st==='In gestione'?'state-gestione':'state-aperta',parts=meetingParts(r.Data),url=safeExternalUrl(r['Link Risposta']),meetingAction=quickMeetingAction(r),trash=deleteSegIconAction(r),contact=r.Recapito||'';const actions=(url?`<a class="seg-response-link seg-response-link-compact" href="${escapeAttr(url)}" target="_blank" rel="noopener noreferrer">Apri risposta ${icon('external','icon icon-sm')}</a>`:'')+meetingAction;return `<article class="seg-mobile-card seg-mobile-card-compact ${state}">${trash}<div class="seg-mobile-row"><div class="seg-mobile-date-stack">${parts?`<span class="seg-mobile-date-day">${escapeHtml(parts.day)}</span><span class="seg-mobile-date-month">${escapeHtml(parts.month.toLowerCase())}</span><span class="seg-mobile-date-year">${escapeHtml(parts.year)}</span>`:`<span class="seg-mobile-date-fallback">Data</span>`}</div><div class="seg-mobile-maincompact"><div class="seg-mobile-mainline"><span class="badge ${componentClass(r.Componente)}">${escapeHtml(componentDisplay(r.Componente))}</span></div>${contact?`<div class="seg-mobile-contact">${escapeHtml(contact)}</div>`:''}<div class="seg-mobile-status-wrap">${statusMarkup(r,i)}</div></div></div>${actions?`<div class="seg-mobile-actions-compact${isCoord?'':' member-only'}">${actions}</div>`:''}</article>`}).join('')}</div>`;
  $('table-container').innerHTML=desktop+mobile}
 function updateStatus(select){const id=select.dataset.id,index=Number(select.dataset.index),next=select.value,row=segnalazioni[index];if(!isCoord||!id||!row)return;const prev=row.Stato||'Aperta';row.Stato=next;select.disabled=true;apiRequest('stato',{id,stato:next},resp=>{select.disabled=false;if(!apiSucceeded(resp)){row.Stato=prev;renderSegnalazioni();apiError(resp?.message||'Stato non aggiornato. Riprova.');return}stampUpdate('seg-updated');renderSegnalazioni();showToast('Segnalazione aggiornata')})}
@@ -462,8 +477,11 @@ function getNoticeLastSeen(){const raw=safeStorageGet(localStorage,noticeSeenKey
 function noticeTime(value){const d=new Date(value||'');if(Number.isNaN(d.getTime()))return '';const today=new Date();const same=today.getFullYear()===d.getFullYear()&&today.getMonth()===d.getMonth()&&today.getDate()===d.getDate();if(same)return 'Oggi · '+new Intl.DateTimeFormat('it-IT',{hour:'2-digit',minute:'2-digit'}).format(d);return new Intl.DateTimeFormat('it-IT',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}).format(d).replace(',', ' ·')}
 function noticeIsNew(a){const t=Date.parse(a.creato||'');return Number.isFinite(t)&&t>getNoticeLastSeen()&&String(a.autoreId||'')!==String(currentUserId||'')}
 function updateAvvisiUnreadBadge(){const badge=$('avvisi-unread');if(!badge)return;const n=avvisi.filter(noticeIsNew).length;badge.textContent=n>9?'9+':String(n);badge.hidden=n===0}
-function markAvvisiSeen(){if(!currentUserId)return;safeStorageSet(localStorage,noticeSeenKey(),new Date().toISOString());const badge=$('avvisi-unread');if(badge)badge.hidden=true}
-function loadAvvisi(silent=false){if(loadingAvvisi)return;loadingAvvisi=true;const refresh=$('refresh-avvisi');if(refresh)refresh.disabled=true;if(!silent&&$('avvisi-list')){$('avvisi-list').innerHTML=LOADER;$('avvisi-list').setAttribute('aria-busy','true')}apiRequest('avvisi',{},rows=>{loadingAvvisi=false;avvisiLoadedOnce=true;if(refresh)refresh.disabled=false;if($('avvisi-list'))$('avvisi-list').removeAttribute('aria-busy');if(!Array.isArray(rows)){if(!silent&&$('avvisi-list'))$('avvisi-list').innerHTML=emptyState('warning','Impossibile caricare la bacheca','Controlla la connessione e premi Aggiorna per riprovare.');if(!silent)apiError('Impossibile caricare la bacheca.');return}avvisi=rows;stampUpdate('avvisi-updated');renderAvvisi();updateAvvisiUnreadBadge()})}
+function markAvvisiSeen(){if(!currentUserId)return;safeStorageSet(localStorage,noticeSeenKey(),new Date().toISOString());const badge=$('avvisi-unread');if(badge)badge.hidden=true;document.querySelectorAll('.notice-card.new').forEach(card=>card.classList.remove('new'));document.querySelectorAll('.notice-new-badge').forEach(el=>el.remove())}
+function loadAvvisi(silent=false,markSeenAfter=false){if(loadingAvvisi)return;loadingAvvisi=true;const refresh=$('refresh-avvisi');if(refresh)refresh.disabled=true;if(!silent&&$('avvisi-list')){$('avvisi-list').innerHTML=LOADER;$('avvisi-list').setAttribute('aria-busy','true')}apiRequest('avvisi',{},rows=>{loadingAvvisi=false;avvisiLoadedOnce=true;if(refresh)refresh.disabled=false;if($('avvisi-list'))$('avvisi-list').removeAttribute('aria-busy');if(!Array.isArray(rows)){if(!silent&&$('avvisi-list'))$('avvisi-list').innerHTML=emptyState('warning','Impossibile caricare la bacheca','Controlla la connessione e premi Aggiorna per riprovare.');if(!silent)apiError('Impossibile caricare la bacheca.');return}avvisi=rows;stampUpdate('avvisi-updated');renderAvvisi();updateAvvisiUnreadBadge();if(markSeenAfter)markAvvisiSeen()})}
+function bachecaIsOpen(){return !!$('page-bacheca')?.classList.contains('active')}
+function refreshNoticeBadge(){if(!currentUser||!navigator.onLine||document.visibilityState==='hidden')return;loadAvvisi(true,bachecaIsOpen())}
+function startNoticePolling(){if(noticePollTimer)clearInterval(noticePollTimer);noticePollTimer=setInterval(refreshNoticeBadge,120000)}
 function renderAvvisi(){const root=$('avvisi-list');if(!root)return;if(!avvisi.length){root.innerHTML=emptyState('megaphone','Nessun avviso','La bacheca è vuota. Puoi pubblicare il primo avviso.');return}const sorted=[...avvisi].sort((a,b)=>Date.parse(b.creato||0)-Date.parse(a.creato||0));root.innerHTML=sorted.map(a=>{const fresh=noticeIsNew(a),can=!!a.puoiGestire;return `<article class="notice-card${fresh?' new':''}" data-notice-id="${escapeAttr(a.id)}"><div class="notice-card-head"><div class="notice-title-wrap"><div class="notice-title-line"><h3>${escapeHtml(a.titolo||'Avviso')}</h3>${fresh?'<span class="notice-new-badge">Nuovo</span>':''}</div><div class="notice-meta"><span>${escapeHtml(a.autore||'Membro')}</span><span aria-hidden="true">·</span><time>${escapeHtml(noticeTime(a.creato))}</time>${a.aggiornato&&a.aggiornato!==a.creato?'<span>· modificato</span>':''}</div></div>${can?`<div class="notice-actions"><button class="notice-icon-btn" type="button" data-action="edit-notice" aria-label="Modifica avviso" title="Modifica">${icon('edit','icon icon-sm')}</button><button class="notice-icon-btn danger" type="button" data-action="delete-notice" aria-label="Elimina avviso" title="Elimina">${icon('trash','icon icon-sm')}</button></div>`:''}</div><div class="notice-text">${escapeHtml(a.testo||'')}</div></article>`}).join('')}
 function openNoticeModal(a=null){editingAvvisoId=a?.id||null;$('notice-modal-title').textContent=a?'Modifica avviso':'Nuovo avviso';$('notice-title').value=a?.titolo||'';$('notice-text').value=a?.testo||'';$('notice-save').textContent=a?'Salva modifiche':'Pubblica';$('notice-error').textContent='';$('notice-error').classList.remove('visible');updateNoticeCharCount();openDialog('modal-avviso-bg','#notice-title')}
 function closeNoticeModal(){editingAvvisoId=null;setNoticeSaving(false);closeDialog('modal-avviso-bg')}
@@ -769,6 +787,8 @@ window.addEventListener('DOMContentLoaded',()=>{
   $('seg-filters').addEventListener('click',e=>{const b=e.target.closest('.stat');if(b)setSegFilter(b.dataset.filter)});
   $('table-container').addEventListener('change',e=>{const s=e.target.closest('.stato-sel');if(s)updateStatus(s)});
   $('table-container').addEventListener('click',e=>{
+    const linked=e.target.closest('[data-action="open-linked-meeting"]');
+    if(linked){const meetingId=linked.dataset.meetingId;if(meetingId)openLinkedMeeting(meetingId);return}
     const del=e.target.closest('[data-action="delete-seg"]');
     if(del&&isCoord){
       const segId=del.dataset.segId;
@@ -836,7 +856,8 @@ window.addEventListener('DOMContentLoaded',()=>{
   setupMembersSheetGesture();
 
   document.addEventListener('click',e=>{if(!e.target.closest('.mobile-account'))closeMobileMenu()});
-  window.addEventListener('online',setNetworkState);
+  window.addEventListener('online',()=>{setNetworkState();refreshNoticeBadge()});
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')refreshNoticeBadge()});
   let __grLastMobile=window.innerWidth<=700;
   window.addEventListener('resize',()=>{const mobile=window.innerWidth<=700;if(mobile===__grLastMobile)return;__grLastMobile=mobile;if(currentUser){renderSegnalazioni();renderIncontri();}});
   window.addEventListener('offline',setNetworkState);

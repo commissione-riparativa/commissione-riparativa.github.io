@@ -156,3 +156,12 @@ Solo il coordinatore vede il comando `Elimina`.
 - badge discreto per i nuovi avvisi;
 - conferma prima di uscire dall’account;
 - giorno della settimana e “Mostra dettagli” resi più leggeri ed eleganti negli incontri.
+
+
+## V30 — rifiniture incontri e Bacheca
+- giorno della settimana e “Mostra dettagli” con peso medio coerente con la dashboard;
+- l’indicazione degli incontri collegati nelle Segnalazioni è ora cliccabile e porta direttamente all’incontro, aprendone i dettagli;
+- il collegamento all’incontro è visibile anche ai membri non coordinatori;
+- badge numerico sulla Bacheca per nuovi avvisi non ancora visti;
+- controllo silenzioso dei nuovi avvisi ogni 2 minuti e quando l’app torna in primo piano;
+- gli avvisi vengono segnati come visti solo quando la Bacheca è effettivamente aperta.

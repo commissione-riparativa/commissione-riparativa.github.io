@@ -974,3 +974,62 @@ textarea{resize:vertical}
 }
 
 .nav-badge[hidden]{display:none!important}
+
+
+/* V30 — tipografia incontri, link diretto e badge Bacheca */
+.inc-summary-weekday{
+  font-family:inherit!important;
+  font-size:15px!important;
+  line-height:1.25!important;
+  font-weight:600!important;
+  letter-spacing:-.012em!important;
+  color:#3f4742!important;
+}
+.inc-summary-toggle,.inc-toggle-label{
+  font-family:inherit!important;
+  font-size:12.75px!important;
+  line-height:1.2!important;
+  font-weight:600!important;
+  letter-spacing:-.006em!important;
+}
+.inc-summary-toggle{color:#1a7258!important}
+.inc-mobile-status{
+  font-family:inherit!important;
+  font-size:14px!important;
+  font-weight:600!important;
+  letter-spacing:-.01em!important;
+  color:#414944!important;
+}
+.inc-mobile-more{
+  font-family:inherit!important;
+  font-size:12.6px!important;
+  font-weight:600!important;
+  letter-spacing:-.004em!important;
+  color:#176c53!important;
+}
+.seg-linked-meeting{
+  border:1px solid #dfe9e4;
+  cursor:pointer;
+  transition:background .16s ease,border-color .16s ease,transform .12s ease;
+}
+.seg-linked-meeting:hover{background:#ecf6f1;border-color:#bfd9ce;color:#145f49}
+.seg-linked-meeting:active{transform:translateY(1px)}
+.seg-link-chevron{width:13px;height:13px;opacity:.72}
+.inc-card.linked-arrival{animation:linkedArrival .95s ease}
+@keyframes linkedArrival{0%,100%{box-shadow:0 5px 18px rgba(18,29,22,.04)}35%{box-shadow:0 0 0 3px rgba(29,158,117,.15),0 10px 26px rgba(18,29,22,.08)}}
+
+.nav-wrap button{position:relative}
+.nav-badge{
+  background:#c65a52!important;
+  color:#fff!important;
+  font-weight:700!important;
+  box-shadow:0 0 0 2px var(--bg);
+  border:0!important;
+}
+#nav-bacheca:not(.active) .nav-badge:not([hidden]){animation:noticeBadgeIn .28s cubic-bezier(.2,.85,.3,1)}
+@keyframes noticeBadgeIn{from{transform:scale(.65);opacity:0}to{transform:scale(1);opacity:1}}
+
+@media(max-width:700px){
+  .seg-mobile-actions-compact .seg-linked-meeting{width:auto;max-width:100%;min-height:33px;padding:6px 9px;font-size:12px}
+  .inc-summary-weekday{font-size:14px!important}
+}
