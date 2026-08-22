@@ -3,7 +3,7 @@ function registerServiceWorker(){
   if(!('serviceWorker' in navigator))return;
   window.addEventListener('load',()=>{
     const hadController=!!navigator.serviceWorker.controller;
-    navigator.serviceWorker.register('./sw.js?v=32').then(reg=>{
+    navigator.serviceWorker.register('./sw.js?v=34').then(reg=>{
       const watch=worker=>{if(!worker)return;worker.addEventListener('statechange',()=>{if(worker.state==='installed'&&navigator.serviceWorker.controller)showUpdateReady()})};
       if(reg.installing)watch(reg.installing);
       reg.addEventListener('updatefound',()=>watch(reg.installing));
@@ -32,6 +32,8 @@ const dialogReturnFocus=new Map();
 let pageScrollLocked=false,lockedPageScrollY=0;
 let membersLoading=false;
 let noticePollTimer=null,currentPage='segnalazioni',markAvvisiAfterLoad=false;
+const PRIMARY_PAGES=['segnalazioni','incontri','bacheca'];
+let pageSwipe={tracking:false,horizontal:false,startX:0,startY:0,lastX:0,lastT:0,targetId:'',from:null,to:null};
 let memberSheetDrag={active:false,dragging:false,startY:0,lastY:0,lastT:0,delta:0,scrollEl:null};
 let DEMO_SEGNALAZIONI=[
  {ID:'seg_demo_1',Data:'2026-08-18',Componente:'Componente Studenti',Recapito:'studente@example.it',Stato:'Aperta','Link Risposta':''},
@@ -442,7 +444,87 @@ function showMain(){
 
 function updateNavIndicator(id,animate=true){const nav=document.querySelector('.nav-wrap'),indicator=$('nav-indicator'),btn=nav?.querySelector(`button[data-page="${id}"]`);if(!nav||!indicator||!btn)return;if(!animate)indicator.classList.add('no-transition');indicator.style.width=btn.offsetWidth+'px';indicator.style.transform=`translateX(${btn.offsetLeft}px)`;if(!animate)requestAnimationFrame(()=>requestAnimationFrame(()=>indicator.classList.remove('no-transition')))}
 function animatePageEntry(page,direction){if(!page)return;page.classList.remove('page-enter-forward','page-enter-back');void page.offsetWidth;page.classList.add(direction<0?'page-enter-back':'page-enter-forward');setTimeout(()=>page.classList.remove('page-enter-forward','page-enter-back'),260)}
-function showPage(id){if(!['segnalazioni','incontri','bacheca'].includes(id)||id===currentPage)return;const previous=currentPage;document.querySelectorAll('.page').forEach(p=>p.classList.toggle('active',p.id==='page-'+id));document.querySelectorAll('.nav-wrap button').forEach(b=>{const active=b.dataset.page===id;b.classList.toggle('active',active);if(active)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current')});currentPage=id;updateNavIndicator(id,true);if(previous==='incontri'){openMeetingCardId='';openPanels={};if(currentUser&&$('incontri-list'))renderIncontri()}if(id==='bacheca'){if(!avvisiLoadedOnce)loadAvvisi(false,true);else{renderAvvisi();markAvvisiSeen()}}closeMobileMenu()}
+function showPage(id){if(!PRIMARY_PAGES.includes(id)||id===currentPage)return;const previous=currentPage;document.querySelectorAll('.page').forEach(p=>p.classList.toggle('active',p.id==='page-'+id));document.querySelectorAll('.nav-wrap button').forEach(b=>{const active=b.dataset.page===id;b.classList.toggle('active',active);if(active)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current')});currentPage=id;updateNavIndicator(id,true);if(previous==='incontri'){openMeetingCardId='';openPanels={};if(currentUser&&$('incontri-list'))renderIncontri()}if(id==='bacheca'){if(!avvisiLoadedOnce)loadAvvisi(false,true);else{renderAvvisi();markAvvisiSeen()}}closeMobileMenu()}
+function navIndicatorMetrics(id){const nav=document.querySelector('.nav-wrap'),btn=nav?.querySelector(`button[data-page="${id}"]`);return nav&&btn?{left:btn.offsetLeft,width:btn.offsetWidth}:null}
+function setSwipeIndicator(from,to,progress){const indicator=$('nav-indicator');if(!indicator||!from||!to)return;const p=Math.max(0,Math.min(1,progress));indicator.classList.add('swiping');indicator.style.width=(from.width+(to.width-from.width)*p)+'px';indicator.style.transform=`translateX(${from.left+(to.left-from.left)*p}px)`}
+function resetPageSwipe(restore=true){const indicator=$('nav-indicator');if(indicator)indicator.classList.remove('swiping');pageSwipe={tracking:false,horizontal:false,startX:0,startY:0,lastX:0,lastT:0,targetId:'',from:null,to:null};if(restore)requestAnimationFrame(()=>updateNavIndicator(currentPage,true))}
+function swipeTargetForDelta(dx){const currentIndex=PRIMARY_PAGES.indexOf(currentPage),step=dx<0?1:-1,nextIndex=currentIndex+step;return nextIndex>=0&&nextIndex<PRIMARY_PAGES.length?PRIMARY_PAGES[nextIndex]:''}
+function canStartPageSwipe(target,x){if(window.innerWidth>700||!currentUser||document.querySelector('.modal-bg.open,.confirm-bg.open'))return false;if(x<28||x>window.innerWidth-28)return false;return !target.closest('button,a,input,textarea,select,label,[contenteditable="true"],.nav-shell,.stats,.refresh-row,.members-modal,.notice-modal');}
+function setupPageSwipe(){
+  const surface=$('main-screen');
+  if(!surface)return;
+
+  const begin=(target,x,y)=>{
+    if(!canStartPageSwipe(target,x))return false;
+    pageSwipe={tracking:true,horizontal:false,startX:x,startY:y,lastX:x,lastT:performance.now(),targetId:'',from:navIndicatorMetrics(currentPage),to:null};
+    return true;
+  };
+
+  const move=(x,y,prevent)=>{
+    if(!pageSwipe.tracking)return;
+    const dx=x-pageSwipe.startX,dy=y-pageSwipe.startY,ax=Math.abs(dx),ay=Math.abs(dy);
+    if(!pageSwipe.horizontal){
+      if(ax<8&&ay<8)return;
+      if(ay>ax*1.05){resetPageSwipe(false);return}
+      if(ax<=ay*1.08)return;
+      pageSwipe.horizontal=true;
+    }
+    if(prevent)prevent();
+    pageSwipe.lastX=x;
+    pageSwipe.lastT=performance.now();
+    const targetId=swipeTargetForDelta(dx);
+    pageSwipe.targetId=targetId;
+    if(!targetId){updateNavIndicator(currentPage,false);return}
+    pageSwipe.to=navIndicatorMetrics(targetId);
+    const travel=Math.min(170,Math.max(105,window.innerWidth*.34));
+    setSwipeIndicator(pageSwipe.from,pageSwipe.to,Math.abs(dx)/travel);
+  };
+
+  const finish=(x)=>{
+    if(!pageSwipe.tracking)return;
+    const dx=x-pageSwipe.startX;
+    const targetId=swipeTargetForDelta(dx);
+    const threshold=Math.min(76,Math.max(48,window.innerWidth*.14));
+    const commit=pageSwipe.horizontal&&!!targetId&&Math.abs(dx)>=threshold;
+    const indicator=$('nav-indicator');
+    if(indicator)indicator.classList.remove('swiping');
+    pageSwipe={tracking:false,horizontal:false,startX:0,startY:0,lastX:0,lastT:0,targetId:'',from:null,to:null};
+    requestAnimationFrame(()=>commit?showPage(targetId):updateNavIndicator(currentPage,true));
+  };
+
+  if(window.PointerEvent){
+    let pointerId=null;
+    surface.addEventListener('pointerdown',e=>{
+      if(e.pointerType!=='touch'&&e.pointerType!=='pen')return;
+      if(begin(e.target,e.clientX,e.clientY))pointerId=e.pointerId;
+    },{passive:true});
+    surface.addEventListener('pointermove',e=>{
+      if(pointerId===null||e.pointerId!==pointerId)return;
+      move(e.clientX,e.clientY,()=>e.preventDefault());
+    },{passive:false});
+    surface.addEventListener('pointerup',e=>{
+      if(pointerId===null||e.pointerId!==pointerId)return;
+      const x=e.clientX;pointerId=null;finish(x);
+    },{passive:true});
+    surface.addEventListener('pointercancel',e=>{
+      if(pointerId!==null&&e.pointerId===pointerId){pointerId=null;resetPageSwipe(true)}
+    },{passive:true});
+  }else{
+    surface.addEventListener('touchstart',e=>{
+      if(e.touches.length!==1)return;
+      const t=e.touches[0];begin(e.target,t.clientX,t.clientY);
+    },{passive:true});
+    surface.addEventListener('touchmove',e=>{
+      if(!pageSwipe.tracking||e.touches.length!==1)return;
+      const t=e.touches[0];move(t.clientX,t.clientY,()=>e.preventDefault());
+    },{passive:false});
+    surface.addEventListener('touchend',e=>{
+      if(!pageSwipe.tracking)return;
+      finish(e.changedTouches?.[0]?.clientX??pageSwipe.lastX);
+    },{passive:true});
+    surface.addEventListener('touchcancel',()=>resetPageSwipe(true),{passive:true});
+  }
+}
 function toggleMobileMenu(){return}
 function closeMobileMenu(){return}
 function setNetworkState(){const offline=!navigator.onLine;$('network-banner').classList.toggle('visible',offline)}
@@ -833,6 +915,7 @@ window.addEventListener('DOMContentLoaded',()=>{
   $('login-code').addEventListener('keydown',e=>{if(e.key==='Enter')verifyLoginCode()});
 
   document.querySelector('.nav-wrap').addEventListener('click',e=>{const b=e.target.closest('button[data-page]');if(b)showPage(b.dataset.page)});
+  setupPageSwipe();
   $('seg-filters').addEventListener('click',e=>{const b=e.target.closest('.stat');if(b)setSegFilter(b.dataset.filter)});
   $('table-container').addEventListener('change',e=>{const s=e.target.closest('.stato-sel');if(s)updateStatus(s)});
   $('table-container').addEventListener('click',e=>{

@@ -188,3 +188,22 @@ Solo il coordinatore vede il comando `Elimina`.
 - colori di "Nuova" e "In corso" resi più distinguibili;
 - Segnalazioni desktop ridisegnate come schede orizzontali, coerenti con le card mobile;
 - nessuna modifica al backend: resta compatibile con Apps Script v3.5.
+
+
+## Versione 33 — swipe mobile e colori stati
+
+- su smartphone è possibile passare tra Segnalazioni, Incontri e Bacheca con uno swipe orizzontale;
+- lo swipe è un gesto aggiuntivo: i tre pulsanti di navigazione restano sempre disponibili;
+- la pillola superiore segue il gesto e completa lo spostamento solo superata una soglia intenzionale;
+- lo swipe non parte dai bordi dello schermo, dai pulsanti, dai link o dai campi, per evitare conflitti con i gesti di iPhone e con i controlli dell’app;
+- `Nuova` usa ora un rosso/corallo più netto, mentre `In corso` usa un giallo/ocra più separato;
+- le schede Segnalazioni hanno un accento di stato più visibile anche su desktop;
+- nessuna modifica al backend: resta Apps Script v3.5.
+
+
+## Versione 34 — correzione swipe
+
+- corretta una sequenza di escape nel CSS della v33 che impediva l'applicazione delle regole aggiunte in quella versione;
+- swipe mobile riscritto usando Pointer Events con fallback touch per maggiore affidabilità su iPhone/Android;
+- soglia dello swipe leggermente ridotta, mantenendo la protezione dai gesti verticali e dai controlli interattivi;
+- mantenuti i colori più distinti per Nuova e In corso.
