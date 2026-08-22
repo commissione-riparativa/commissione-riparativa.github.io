@@ -868,10 +868,6 @@ body.dialog-scroll-locked{
   .seg-row-actions{align-items:center}
 }
 
-.modal-bg.open,.confirm-bg.open{animation:overlayFade .16s ease}
-.modal-bg.open .modal,.confirm-bg.open .confirm-box{animation:modalLift .22s cubic-bezier(.2,.85,.28,1)}
-@keyframes overlayFade{from{opacity:0}to{opacity:1}}
-@keyframes modalLift{from{opacity:0;transform:translateY(10px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}
 
 @media(max-width:700px){
   .inc-card-mobile{padding:0!important}
@@ -1032,4 +1028,37 @@ textarea{resize:vertical}
 @media(max-width:700px){
   .seg-mobile-actions-compact .seg-linked-meeting{width:auto;max-width:100%;min-height:33px;padding:6px 9px;font-size:12px}
   .inc-summary-weekday{font-size:14px!important}
+}
+
+
+/* V31 — stabilizzazione, navigazione fluida e desktop più leggibile */
+.nav-wrap{position:relative;isolation:isolate;overflow:hidden}
+.nav-indicator{position:absolute;top:3px;bottom:3px;left:0;width:0;border-radius:8px;background:#fff;box-shadow:0 1px 4px rgba(20,30,22,.07);transform:translateX(0);transition:transform .30s cubic-bezier(.22,.78,.28,1),width .30s cubic-bezier(.22,.78,.28,1);z-index:0;pointer-events:none}
+.nav-indicator.no-transition{transition:none!important}
+.nav-wrap button{position:relative;z-index:1;background:transparent!important;box-shadow:none!important;transition:color .20s ease!important}
+.nav-wrap button.active{background:transparent!important;box-shadow:none!important;color:var(--green-dark)}
+.page.active.page-enter-forward{animation:v31PageForward .24s cubic-bezier(.22,.78,.28,1)}
+.page.active.page-enter-back{animation:v31PageBack .24s cubic-bezier(.22,.78,.28,1)}
+@keyframes v31PageForward{from{opacity:.55;transform:translateX(8px)}to{opacity:1;transform:translateX(0)}}
+@keyframes v31PageBack{from{opacity:.55;transform:translateX(-8px)}to{opacity:1;transform:translateX(0)}}
+
+@media(min-width:701px){
+  #page-segnalazioni .table-card{background:transparent;border:0;overflow:visible}
+  .seg-desktop-table table{border-collapse:separate;border-spacing:0 7px}
+  .seg-desktop-table thead th{background:transparent;border-bottom:0;padding-top:4px;padding-bottom:4px}
+  .seg-desktop-table tbody td{background:#fff;border-top:1px solid #e5e9e4;border-bottom:1px solid #e5e9e4;padding-top:10px;padding-bottom:10px}
+  .seg-desktop-table tbody tr:last-child td{border-bottom:1px solid #e5e9e4}
+  .seg-desktop-table tbody td:first-child{border-left:1px solid #e5e9e4;border-radius:12px 0 0 12px}
+  .seg-desktop-table tbody td:last-child{border-right:1px solid #e5e9e4;border-radius:0 12px 12px 0}
+  .seg-desktop-table tbody tr:hover td{background:#fbfdfb;border-color:#dce4de}
+}
+
+.progress-bar-multi .progress-seg{transition:width .28s cubic-bezier(.22,.78,.28,1)}
+
+.update-banner{position:fixed;left:50%;bottom:max(18px,env(safe-area-inset-bottom));transform:translateX(-50%);z-index:180;display:flex;align-items:center;gap:12px;padding:10px 11px 10px 14px;border:1px solid #dbe5df;border-radius:13px;background:#fff;box-shadow:0 12px 34px rgba(20,30,22,.13);font-size:12.5px;color:#424943}
+.update-banner[hidden]{display:none!important}
+.update-banner button{min-height:32px;padding:5px 10px;border:0;border-radius:9px;background:var(--green-dark);color:#fff;font:inherit;font-weight:650;cursor:pointer}
+
+@media(prefers-reduced-motion:reduce){
+  .nav-indicator,.page,.progress-seg,.inc-details-shell,.inc-details-inner,.modal,.confirm-box,.modal-bg,.confirm-bg{animation:none!important;transition:none!important}
 }

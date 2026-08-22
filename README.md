@@ -165,3 +165,16 @@ Solo il coordinatore vede il comando `Elimina`.
 - badge numerico sulla Bacheca per nuovi avvisi non ancora visti;
 - controllo silenzioso dei nuovi avvisi ogni 2 minuti e quando l’app torna in primo piano;
 - gli avvisi vengono segnati come visti solo quando la Bacheca è effettivamente aperta.
+
+
+## V31 — Stabilizzazione
+- disponibilità aggiornata in tempo reale su tutte e tre le fasce della barra;
+- associazione membri basata sugli ID, con fallback ai nomi solo per dati storici;
+- incontri e disponibilità caricati in parallelo;
+- navigazione con indicatore/pillola scorrevole e lieve transizione di pagina;
+- segnalazioni desktop separate in righe più leggibili;
+- stato di lettura della Bacheca sincronizzato tra dispositivi (backend v3.5);
+- ogni autore può modificare/eliminare il proprio avviso; il coordinatore può gestirli tutti;
+- avviso discreto quando è disponibile una nuova versione PWA;
+- limite globale agli invii OTP per proteggere la quota email;
+- alcuni override CSS obsoleti sono stati rimossi.

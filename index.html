@@ -1,14 +1,14 @@
 <!DOCTYPE html>
 <html lang="it">
 <head>
-  <meta name="app-ui-version" content="29">
+  <meta name="app-ui-version" content="31">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="referrer" content="no-referrer">
 <meta name="theme-color" content="#f6f7f4">
 <title>Giustizia Riparativa</title>
-<link rel="stylesheet" href="style.css?v=30">
-<link rel="manifest" href="manifest.webmanifest?v=30">
+<link rel="stylesheet" href="style.css?v=31">
+<link rel="manifest" href="manifest.webmanifest?v=31">
 <link rel="icon" href="icons/favicon-bilancia-v2.png" type="image/png">
 <link rel="apple-touch-icon" href="icons/apple-touch-bilancia-v2.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -102,7 +102,7 @@
     <div class="network-banner" id="network-banner" role="status">Sei offline. Puoi consultare ciò che è già caricato, ma le modifiche non possono essere salvate.</div>
     <div class="demo-note" id="demo-note" role="status">Modalità dimostrativa attiva: i dati mostrati non sono quelli reali.</div>
     <div class="nav-shell">
-      <nav class="nav-wrap" aria-label="Sezioni principali">
+      <nav class="nav-wrap" aria-label="Sezioni principali"><span class="nav-indicator" id="nav-indicator" aria-hidden="true"></span>
         <button class="active" id="nav-segnalazioni" type="button" data-page="segnalazioni" aria-current="page"><svg class="icon" aria-hidden="true"><use href="#i-report"></use></svg>Segnalazioni</button>
         <button id="nav-incontri" type="button" data-page="incontri"><svg class="icon" aria-hidden="true"><use href="#i-calendar"></use></svg>Incontri</button>
         <button id="nav-bacheca" type="button" data-page="bacheca"><svg class="icon" aria-hidden="true"><use href="#i-megaphone"></use></svg><span>Bacheca</span><span class="nav-badge" id="avvisi-unread" hidden>0</span></button>
@@ -213,6 +213,8 @@
   </div>
 </div>
 
+
+<div class="update-banner" id="update-banner" hidden role="status" aria-live="polite"><span>È disponibile una nuova versione.</span><button type="button" id="update-now">Aggiorna</button></div>
 <div id="toast" class="toast" role="status" aria-live="polite" aria-atomic="true"></div>
-<script src="app.js?v=30"></script></body>
+<script src="app.js?v=31"></script></body>
 </html>
