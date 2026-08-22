@@ -878,3 +878,53 @@ body.dialog-scroll-locked{
   .inc-mobile-summary{align-items:center}
   .inc-details-inner{padding:0 14px 14px}
 }
+
+
+/* V28 — correzione simmetria, ruoli e transizioni */
+#btn-impostazioni[hidden],#mobile-btn-impostazioni[hidden]{display:none!important}
+
+/* Desktop Segnalazioni: torna compatto come prima, ma azioni centrate */
+@media(min-width:701px){
+  .seg-desktop-table table{font-size:13px}
+  .seg-desktop-table th{padding:10px 12px}
+  .seg-desktop-table td{padding:9px 12px;line-height:1.3}
+  .seg-desktop-table tbody tr{height:auto}
+  .seg-desktop-table .stato-sel{min-height:34px;padding-top:5px;padding-bottom:5px;font-size:12px}
+  .seg-row-actions{display:grid!important;gap:5px!important;align-items:center!important;justify-items:center!important;min-height:0!important}
+  .seg-action-info,.seg-action-buttons{display:flex!important;align-items:center!important;justify-content:center!important;flex-wrap:wrap!important;gap:5px 7px!important;min-width:0}
+  .seg-action-buttons:empty{display:none!important}
+  .seg-row-actions.member-only{grid-template-rows:1fr}
+  .seg-row-actions.member-only .seg-action-info{min-height:32px}
+  .seg-row-actions .seg-response-link{min-height:30px!important;padding:4px 7px!important;border:0!important;background:transparent!important;border-radius:7px!important;font-size:12px!important}
+  .seg-row-actions .seg-meeting-state{min-height:28px!important;padding:4px 7px!important;border:0!important;background:#f3f5f2!important;font-size:11px!important}
+  .seg-row-actions .seg-quick-meeting{min-width:0!important;min-height:32px!important;padding:5px 9px!important;font-size:11.5px!important}
+  .seg-row-actions .seg-delete-action{min-width:0!important;min-height:28px!important;padding:4px 6px!important;font-size:11px!important}
+}
+
+/* Mobile Segnalazioni: cestino nell'angolo, footer regolare */
+@media(max-width:700px){
+  .seg-mobile-card-compact{position:relative}
+  .seg-trash-corner{position:absolute;top:10px;right:10px;z-index:2;width:32px;height:32px;display:grid;place-items:center;border:0;border-radius:9px;background:transparent;color:#a64d45;cursor:pointer}
+  .seg-trash-corner:active{background:#fff0ee}
+  .seg-mobile-row{padding-right:50px!important}
+  .seg-mobile-actions-compact{justify-content:flex-start;align-items:center;padding-top:10px!important}
+  .seg-mobile-actions-compact.member-only{justify-content:center}
+  .seg-mobile-actions-compact.member-only .seg-response-link-compact{width:auto;min-width:0;padding:6px 11px}
+  .seg-mobile-actions-compact .seg-meeting-state{width:auto}
+  .seg-mobile-actions-compact .seg-quick-meeting{width:auto}
+}
+
+/* Dettagli incontro: movimento più morbido */
+.inc-details-shell{transition:max-height .34s cubic-bezier(.22,.78,.28,1),opacity .22s ease!important}
+.inc-details-inner{opacity:.15;transform:translateY(-6px);transition:opacity .22s ease .03s,transform .3s cubic-bezier(.22,.78,.28,1)}
+.inc-details-shell.open .inc-details-inner{opacity:1;transform:translateY(0)}
+
+/* Modali e bottom sheet: niente display on/off, solo fade e piccolo movimento */
+.modal-bg,.confirm-bg{display:flex!important;opacity:0;visibility:hidden;pointer-events:none;transition:opacity .2s ease,visibility 0s linear .24s!important;animation:none!important}
+.modal-bg.open,.confirm-bg.open{opacity:1;visibility:visible;pointer-events:auto;transition:opacity .2s ease,visibility 0s linear 0s!important;animation:none!important}
+.modal,.confirm-box{opacity:0;transform:translateY(8px) scale(.992);transition:opacity .18s ease,transform .24s cubic-bezier(.22,.78,.28,1)!important;animation:none!important}
+.modal-bg.open .modal,.confirm-bg.open .confirm-box{opacity:1;transform:translateY(0) scale(1);animation:none!important}
+@media(max-width:700px){
+  .modal,.confirm-box{transform:translateY(18px);}
+  .modal-bg.open .modal,.confirm-bg.open .confirm-box{transform:translateY(0)}
+}

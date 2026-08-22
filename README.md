@@ -140,3 +140,11 @@ Solo il coordinatore vede il comando `Elimina`.
 - azioni delle segnalazioni allineate e più simmetriche su desktop;
 - nuove etichette di stato: Nuove / In corso / Concluse;
 - barre disponibilità a tre colori: verde, rosso e giallo.
+
+
+## V28 — polish
+- Segnalazioni desktop riportate a un layout più compatto, con azioni centrate;
+- su mobile il coordinatore vede solo il cestino nell'angolo della segnalazione;
+- per i membri normali Apri risposta è compatto e centrato;
+- icona Gestione membri sostituita con icona persone e nascosta rigidamente ai non coordinatori;
+- transizioni di modali e dettagli incontro rese più morbide.
