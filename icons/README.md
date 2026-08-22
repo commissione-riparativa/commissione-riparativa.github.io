@@ -108,3 +108,94 @@ Solo il coordinatore vede il comando `Elimina`.
 - È possibile collegare più incontri alla stessa segnalazione.
 - Le segnalazioni concluse mostrano solo il numero di incontri collegati e non propongono nuovi incontri.
 - Il comando `Elimina` resta disponibile ma visivamente secondario.
+
+
+## V24 — Segnalazioni più compatte
+
+- desktop: righe più basse e colonna Azioni più ampia;
+- `Apri risposta`, stato incontri e pulsanti sono organizzati in massimo due righe compatte;
+- nessun incontro: `Crea incontro`;
+- incontri già collegati: conteggio + `Nuovo incontro`;
+- gli incontri nuovi sono riconosciuti tramite `Segnalazione ID`;
+- compatibilità migliorata per incontri storici senza ID, evitando associazioni ambigue;
+- numeri dei filtri: rosso = da prendere in carico, giallo = in percorso, verde = concluse;
+- cache PWA aggiornata e meta versione UI impostata a 24.
+
+
+## V25 — Rifinitura mobile
+
+- `Crea incontro` / `Nuovo incontro` ha margine laterale e inferiore dentro la card;
+- `Gestione membri` si apre subito e mostra una rotellina durante il caricamento;
+- la pagina sotto viene bloccata quando un pannello è aperto;
+- su telefono il pannello membri è un bottom sheet trascinabile verso il basso per chiuderlo;
+- rimangono anche `Annulla` e il tap sullo sfondo;
+- Gestione membri ed Esci sono ora due icone compatte nell'header mobile;
+- cache PWA aggiornata alla v26.
+
+
+## V27 — desktop + microinterazioni
+- incontri compatti anche su desktop, con riepilogo e dettagli apribili;
+- reset automatico dei dettagli incontro quando si cambia pagina;
+- transizione lieve per modali/pannelli;
+- azioni delle segnalazioni allineate e più simmetriche su desktop;
+- nuove etichette di stato: Nuove / In corso / Concluse;
+- barre disponibilità a tre colori: verde, rosso e giallo.
+
+
+## V28 — polish
+- Segnalazioni desktop riportate a un layout più compatto, con azioni centrate;
+- su mobile il coordinatore vede solo il cestino nell'angolo della segnalazione;
+- per i membri normali Apri risposta è compatto e centrato;
+- icona Gestione membri sostituita con icona persone e nascosta rigidamente ai non coordinatori;
+- transizioni di modali e dettagli incontro rese più morbide.
+
+
+## V29 — Bacheca
+- nuova sezione Bacheca, leggibile e scrivibile da tutti i membri autenticati;
+- autore o coordinatore possono modificare/eliminare un avviso;
+- badge discreto per i nuovi avvisi;
+- conferma prima di uscire dall’account;
+- giorno della settimana e “Mostra dettagli” resi più leggeri ed eleganti negli incontri.
+
+
+## V30 — rifiniture incontri e Bacheca
+- giorno della settimana e “Mostra dettagli” con peso medio coerente con la dashboard;
+- l’indicazione degli incontri collegati nelle Segnalazioni è ora cliccabile e porta direttamente all’incontro, aprendone i dettagli;
+- il collegamento all’incontro è visibile anche ai membri non coordinatori;
+- badge numerico sulla Bacheca per nuovi avvisi non ancora visti;
+- controllo silenzioso dei nuovi avvisi ogni 2 minuti e quando l’app torna in primo piano;
+- gli avvisi vengono segnati come visti solo quando la Bacheca è effettivamente aperta.
+
+
+## V31 — Stabilizzazione
+- disponibilità aggiornata in tempo reale su tutte e tre le fasce della barra;
+- associazione membri basata sugli ID, con fallback ai nomi solo per dati storici;
+- incontri e disponibilità caricati in parallelo;
+- navigazione con indicatore/pillola scorrevole e lieve transizione di pagina;
+- segnalazioni desktop separate in righe più leggibili;
+- stato di lettura della Bacheca sincronizzato tra dispositivi (backend v3.5);
+- ogni autore può modificare/eliminare il proprio avviso; il coordinatore può gestirli tutti;
+- avviso discreto quando è disponibile una nuova versione PWA;
+- limite globale agli invii OTP per proteggere la quota email;
+- alcuni override CSS obsoleti sono stati rimossi.
+
+
+## Versione 32 — rifiniture finali
+
+- eliminato il piccolo flash nel passaggio tra Segnalazioni, Incontri e Bacheca;
+- mantenuta la pillola animata della navigazione;
+- i pulsanti "Ci sono" e "Non posso" restano visibili anche quando un incontro non è espanso;
+- colori di "Nuova" e "In corso" resi più distinguibili;
+- Segnalazioni desktop ridisegnate come schede orizzontali, coerenti con le card mobile;
+- nessuna modifica al backend: resta compatibile con Apps Script v3.5.
+
+
+## Versione 33 — swipe mobile e colori stati
+
+- su smartphone è possibile passare tra Segnalazioni, Incontri e Bacheca con uno swipe orizzontale;
+- lo swipe è un gesto aggiuntivo: i tre pulsanti di navigazione restano sempre disponibili;
+- la pillola superiore segue il gesto e completa lo spostamento solo superata una soglia intenzionale;
+- lo swipe non parte dai bordi dello schermo, dai pulsanti, dai link o dai campi, per evitare conflitti con i gesti di iPhone e con i controlli dell’app;
+- `Nuova` usa ora un rosso/corallo più netto, mentre `In corso` usa un giallo/ocra più separato;
+- le schede Segnalazioni hanno un accento di stato più visibile anche su desktop;
+- nessuna modifica al backend: resta Apps Script v3.5.

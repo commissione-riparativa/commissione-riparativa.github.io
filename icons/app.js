@@ -2,11 +2,17 @@
 function registerServiceWorker(){
   if(!('serviceWorker' in navigator))return;
   window.addEventListener('load',()=>{
-    navigator.serviceWorker.register('./sw.js?v=23').catch(err=>{
-      console.warn('Service worker non registrato:',err);
-    });
+    const hadController=!!navigator.serviceWorker.controller;
+    navigator.serviceWorker.register('./sw.js?v=33').then(reg=>{
+      const watch=worker=>{if(!worker)return;worker.addEventListener('statechange',()=>{if(worker.state==='installed'&&navigator.serviceWorker.controller)showUpdateReady()})};
+      if(reg.installing)watch(reg.installing);
+      reg.addEventListener('updatefound',()=>watch(reg.installing));
+      setInterval(()=>reg.update().catch(()=>{}),60*60*1000);
+    }).catch(err=>console.warn('Service worker non registrato:',err));
+    if(hadController)navigator.serviceWorker.addEventListener('controllerchange',showUpdateReady,{once:true});
   },{once:true});
 }
+function showUpdateReady(){const b=$('update-banner');if(b)b.hidden=false}
 registerServiceWorker();
 
 const API='https://script.google.com/macros/s/AKfycbxxh2IxU5RsMRaH2jJSLz-zjQ7HQOHy6bClaDVQ9wSSlM2bWFsoKW--2ECeWyqQAf9D/exec';
@@ -14,15 +20,21 @@ const API_TIMEOUT_MS=12000;
 const DEFAULT_MEMBERS=['Filippo Colluto','Anna Ferrari','Marco Bianchi','Sara Conti','Luca Esposito','Giulia Ricci','Paolo Marino','Elena Romano','Davide Bruno','Chiara Gallo','Fabio Costa','Marta Fontana','Andrea Russo','Valentina Moro','Stefano Serra','Irene Lombardi'];
 const DAYS=['domenica','lunedì','martedì','mercoledì','giovedì','venerdì','sabato'];
 const MONTHS=['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
-const STATUS_LABELS={'Aperta':'Da prendere in carico','In gestione':'In percorso','Chiusa':'Conclusa'};
+const STATUS_LABELS={'Aperta':'Nuova','In gestione':'In corso','Chiusa':'Conclusa'};
 const LOADER='<div class="loading-state"><div class="spinner" aria-hidden="true"></div><span>Caricamento…</span></div>';
 const DEMO_MODE=new URLSearchParams(location.search).get('demo')==='1';
 
-let members=DEMO_MODE?[...DEFAULT_MEMBERS]:[],membersDraft=[],currentUser=null,currentUserId=null,currentUserEmail='',isCoord=false,authToken='',rememberDevice=true,authFlowBusy=false;
-let segnalazioni=[],incontri=[],disponibilita=[];
-let editingId=null,deletingId=null,deletingSegId=null,deletingMembroIdx=null,currentSegFilter='all',showPastMeetings=false,openPanels={},pendingLoginEmail='';
-let cbN=0,loadingSeg=false,loadingInc=false,incontriLoadedOnce=false;
+let members=DEMO_MODE?[...DEFAULT_MEMBERS]:[],memberDirectory=[],membersDraft=[],currentUser=null,currentUserId=null,currentUserEmail='',isCoord=false,authToken='',rememberDevice=true,authFlowBusy=false;
+let segnalazioni=[],incontri=[],disponibilita=[],avvisi=[];
+let editingId=null,deletingId=null,deletingSegId=null,deletingMembroIdx=null,editingAvvisoId=null,deletingAvvisoId=null,currentSegFilter='all',showPastMeetings=false,openPanels={},openMeetingCardId='',pendingLoginEmail='';
+let cbN=0,loadingSeg=false,loadingInc=false,loadingAvvisi=false,incontriLoadedOnce=false,avvisiLoadedOnce=false;
 const dialogReturnFocus=new Map();
+let pageScrollLocked=false,lockedPageScrollY=0;
+let membersLoading=false;
+let noticePollTimer=null,currentPage='segnalazioni',markAvvisiAfterLoad=false;
+const PRIMARY_PAGES=['segnalazioni','incontri','bacheca'];
+let pageSwipe={tracking:false,horizontal:false,startX:0,startY:0,lastX:0,lastT:0,targetId:'',from:null,to:null};
+let memberSheetDrag={active:false,dragging:false,startY:0,lastY:0,lastT:0,delta:0,scrollEl:null};
 let DEMO_SEGNALAZIONI=[
  {ID:'seg_demo_1',Data:'2026-08-18',Componente:'Componente Studenti',Recapito:'studente@example.it',Stato:'Aperta','Link Risposta':''},
  {ID:'seg_demo_2',Data:'2026-08-14',Componente:'Componente Adulti',Recapito:'adulto@example.it',Stato:'In gestione','Link Risposta':'https://example.com/risposta'},
@@ -32,7 +44,12 @@ let DEMO_INCONTRI=[
  {id:'demo-1',titolo:'venerdì 21 Agosto 2026',dataIso:'2026-08-21',orario:'15:30',luogo:'Aula riunioni',segnalazione:'Segnalazione del 18 agosto 2026 · Componente Studenti · studente@example.it',segnalazioneId:'seg_demo_1'},
  {id:'demo-2',titolo:'martedì 25 Agosto 2026',dataIso:'2026-08-25',orario:'14:15',luogo:'Biblioteca',segnalazione:'Segnalazione del 14 agosto 2026 · Componente Adulti · adulto@example.it',segnalazioneId:'seg_demo_2'}
 ];
-let DEMO_DISP=[{membro:'Filippo Colluto',incontro:'demo-1',risposta:'si'},{membro:'Anna Ferrari',incontro:'demo-1',risposta:'si'},{membro:'Marco Bianchi',incontro:'demo-1',risposta:'no'}];
+let DEMO_DISP=[{membroId:'demo',membro:'Filippo Colluto',incontro:'demo-1',risposta:'si'},{membroId:'mem_demo_2',membro:'Anna Ferrari',incontro:'demo-1',risposta:'si'},{membroId:'mem_demo_3',membro:'Marco Bianchi',incontro:'demo-1',risposta:'no'}];
+let DEMO_AVVISI=[
+ {id:'av_demo_1',titolo:'Riunione della commissione',testo:'Ricordiamo di portare le disponibilità aggiornate per la prossima settimana.',autoreId:'demo',autore:'Filippo Colluto',creato:'2026-08-22T08:30:00.000Z',aggiornato:'2026-08-22T08:30:00.000Z',puoiGestire:true},
+ {id:'av_demo_2',titolo:'Cambio aula',testo:'L’incontro di venerdì si terrà in Biblioteca invece che in Aula riunioni.',autoreId:'mem_demo_2',autore:'Anna Ferrari',creato:'2026-08-21T13:10:00.000Z',aggiornato:'2026-08-21T13:10:00.000Z',puoiGestire:true}
+];
+
 
 function $(id){return document.getElementById(id)}
 function loadMembers(){return [...members]}
@@ -85,6 +102,11 @@ function demoRequest(action,params,cb){let resp={ok:true,demo:true};try{
   else if(action==='nuovo_incontro'){DEMO_INCONTRI.push({id:'demo-'+Date.now(),dataIso:params.data,titolo:meetingTitle(params.data),orario:params.orario,luogo:params.luogo||'',segnalazioneId:params.segnalazione_id||'',segnalazione:summaryForSeg(params.segnalazione_id)})}
   else if(action==='modifica_incontro'){const r=DEMO_INCONTRI.find(x=>x.id===params.id);if(r)Object.assign(r,{dataIso:params.data,titolo:meetingTitle(params.data),orario:params.orario,luogo:params.luogo||'',segnalazioneId:params.segnalazione_id||'',segnalazione:summaryForSeg(params.segnalazione_id)})}
   else if(action==='elimina_incontro'){DEMO_INCONTRI=DEMO_INCONTRI.filter(x=>x.id!==params.id)}
+  else if(action==='avvisi')resp=DEMO_AVVISI.map(x=>({...x}));
+  else if(action==='nuovo_avviso'){const now=new Date().toISOString(),id='av_demo_'+Date.now();DEMO_AVVISI.unshift({id,titolo:params.titolo||'',testo:params.testo||'',autoreId:currentUserId||'demo',autore:currentUser||'Membro',creato:now,aggiornato:now,puoiGestire:true});resp={ok:true,id}}
+  else if(action==='modifica_avviso'){const a=DEMO_AVVISI.find(x=>x.id===params.id);if(!a)resp={ok:false,message:'Avviso non trovato.'};else{a.titolo=params.titolo||a.titolo;a.testo=params.testo||a.testo;a.aggiornato=new Date().toISOString();resp={ok:true}}}
+  else if(action==='elimina_avviso'){DEMO_AVVISI=DEMO_AVVISI.filter(x=>x.id!==params.id);resp={ok:true}}
+  else if(action==='segna_avvisi_letti'){resp={ok:true}}
 }catch{resp={ok:false,message:'Errore modalità demo.'}}setTimeout(()=>cb(resp),70)}
 function summaryForSeg(id){const r=DEMO_SEGNALAZIONI.find(x=>x.ID===id);return r?`Segnalazione del ${dateLong(r.Data)} · ${r.Componente} · ${r.Recapito}`:''}
 
@@ -102,6 +124,33 @@ function isToday(inc){const d=meetingDate(inc);if(!d)return false;const t=new Da
 function parseMeetingSummary(v){const p=String(v||'').split(' · ');return{date:(p[0]||'').replace(/^Segnalazione\s+(del\s+)?/i,''),component:p[1]||'',contact:p.slice(2).join(' · ')||''}}
 function segTimestamp(v){const d=parseDate(v);return d?d.getTime():0}
 function normalizeCompare(v){return String(v||'').trim().toLowerCase().replace(/\s+/g,' ')}
+function normalizeComponentKey(v){
+  let s=normalizeCompare(v).replace(/^componente\s+/,'');
+  if(s==='entrambe'||s==='entrambi')s='entrambe';
+  return s;
+}
+function legacyMeetingMatchesSeg(inc,seg){
+  const parsed=parseMeetingSummary(inc.segnalazione||'');
+  if(!parsed.date||!parsed.component)return false;
+
+  const sameDate=normalizeCompare(dateLong(parsed.date))===normalizeCompare(dateLong(seg.Data));
+  const sameComponent=normalizeComponentKey(parsed.component)===normalizeComponentKey(seg.Componente);
+  if(!sameDate||!sameComponent)return false;
+
+  const meetingContact=normalizeCompare(parsed.contact);
+  const segContact=normalizeCompare(seg.Recapito);
+
+  // Se entrambi hanno un recapito, deve coincidere.
+  if(meetingContact&&segContact)return meetingContact===segContact;
+
+  // Per vecchi incontri senza recapito, usiamo data+componente solo se
+  // individuano una sola segnalazione: così evitiamo associazioni ambigue.
+  const candidates=segnalazioni.filter(r=>
+    normalizeCompare(dateLong(r.Data))===normalizeCompare(dateLong(seg.Data))
+    && normalizeComponentKey(r.Componente)===normalizeComponentKey(seg.Componente)
+  );
+  return candidates.length===1;
+}
 function linkedMeetingsForSeg(seg){
   if(!seg)return [];
   const id=String(seg.ID||'').trim();
@@ -112,19 +161,8 @@ function linkedMeetingsForSeg(seg){
     const incId=String(inc.id||'');
     const linkedId=String(inc.segnalazioneId||'').trim();
 
-    let match=false;
-    if(id&&linkedId===id){
-      match=true;
-    }else if(!linkedId){
-      // Compatibilità con incontri storici creati prima dell'introduzione di "Segnalazione ID".
-      const targetDate=normalizeCompare(dateLong(seg.Data));
-      const targetComponent=normalizeCompare(seg.Componente);
-      const targetContact=normalizeCompare(seg.Recapito);
-      const parsed=parseMeetingSummary(inc.segnalazione||'');
-      match=normalizeCompare(dateLong(parsed.date))===targetDate
-        && normalizeCompare(parsed.component)===targetComponent
-        && normalizeCompare(parsed.contact)===targetContact;
-    }
+    // Associazione primaria e affidabile: ID della segnalazione.
+    const match=(id&&linkedId===id)||(!linkedId&&legacyMeetingMatchesSeg(inc,seg));
 
     if(match&&!seen.has(incId)){
       seen.add(incId);
@@ -138,23 +176,40 @@ function deleteSegAction(r){
   if(!isCoord||!r?.ID)return '';
   return `<button class="seg-delete-action" type="button" data-action="delete-seg" data-seg-id="${escapeAttr(r.ID)}">${icon('trash','icon icon-sm')}<span>Elimina</span></button>`;
 }
-function quickMeetingAction(r){
+function deleteSegIconAction(r){
   if(!isCoord||!r?.ID)return '';
+  return `<button class="seg-trash-corner" type="button" data-action="delete-seg" data-seg-id="${escapeAttr(r.ID)}" aria-label="Elimina segnalazione" title="Elimina segnalazione">${icon('trash','icon icon-sm')}</button>`;
+}
+function quickMeetingAction(r){
+  if(!r?.ID)return '';
   const closed=(r.Stato||'Aperta')==='Chiusa';
   const linked=incontriLoadedOnce?linkedMeetingsForSeg(r):[];
   const count=linked.length;
+  const target=linked.find(i=>!isPast(i))||linked.at(-1)||null;
+  const linkedAction=count&&target
+    ?`<button class="seg-meeting-state seg-linked-meeting" type="button" data-action="open-linked-meeting" data-meeting-id="${escapeAttr(target.id)}" title="Apri l’incontro collegato a questa segnalazione">${icon('calendar','icon icon-sm')}<span>${count} ${count===1?'incontro collegato':'incontri collegati'}</span>${icon('chevron-right','icon icon-sm seg-link-chevron')}</button>`
+    :'';
 
-  if(closed){
-    return count
-      ?`<span class="seg-meeting-state">${icon('calendar','icon icon-sm')}<span>${count} ${count===1?'incontro collegato':'incontri collegati'}</span></span>`
-      :'';
-  }
+  if(!isCoord||closed)return linkedAction;
 
-  if(count){
-    return `<span class="seg-meeting-state">${icon('calendar','icon icon-sm')}<span>${count} ${count===1?'incontro collegato':'incontri collegati'}</span></span><button class="seg-quick-meeting secondary" type="button" data-action="quick-meeting" data-seg-id="${escapeAttr(r.ID)}">${icon('plus','icon icon-sm')}<span>Nuovo incontro</span></button>`;
-  }
-
-  return `<button class="seg-quick-meeting" type="button" data-action="quick-meeting" data-seg-id="${escapeAttr(r.ID)}">${icon('calendar','icon icon-sm')}<span>Crea incontro</span></button>`;
+  const createAction=`<button class="seg-quick-meeting${count?' secondary':''}" type="button" data-action="quick-meeting" data-seg-id="${escapeAttr(r.ID)}">${icon(count?'plus':'calendar','icon icon-sm')}<span>${count?'Nuovo incontro':'Crea incontro'}</span></button>`;
+  return linkedAction+createAction;
+}
+function openLinkedMeeting(meetingId){
+  const inc=incontri.find(i=>String(i.id)===String(meetingId||''));
+  if(!inc){apiError('Incontro collegato non trovato.');return}
+  if(isPast(inc))showPastMeetings=true;
+  showPage('incontri');
+  openMeetingCardId=String(inc.id);
+  renderIncontri();
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    const card=[...document.querySelectorAll('.inc-card[data-meeting-id]')].find(x=>String(x.dataset.meetingId)===String(inc.id));
+    if(!card)return;
+    setMeetingCardOpen(String(inc.id),true);
+    card.scrollIntoView({behavior:'smooth',block:'center'});
+    card.classList.add('linked-arrival');
+    setTimeout(()=>card.classList.remove('linked-arrival'),1100);
+  }));
 }
 function openQuickMeeting(segId){
   const seg=segnalazioni.find(r=>String(r.ID||'')===String(segId||''));
@@ -333,14 +388,15 @@ function establishSession(user,done=()=>{}){
 function loadCommissionMembers(done=()=>{}){
   apiRequest('membri',{},rows=>{
     if(!Array.isArray(rows)){done(false);return}
-    members=rows.map(x=>String(x.nome||'').trim()).filter(Boolean);
-    if(currentUser&&!members.includes(currentUser))members.unshift(currentUser);
+    memberDirectory=rows.map(x=>({id:String(x.id||'').trim(),nome:String(x.nome||'').trim(),ruolo:String(x.ruolo||'membro')})).filter(x=>x.nome);
+    if(currentUser&&!memberDirectory.some(m=>String(m.id)===String(currentUserId))){memberDirectory.unshift({id:currentUserId||'',nome:currentUser,ruolo:isCoord?'coordinatore':'membro'})}
+    members=memberDirectory.map(x=>x.nome);
     done(true);
   });
 }
 function handleAuthFailure(resp){
   const message=resp?.message||'La sessione non è più valida. Accedi di nuovo.';
-  authToken='';currentUser=null;currentUserId=null;currentUserEmail='';isCoord=false;members=[];
+  authToken='';currentUser=null;currentUserId=null;currentUserEmail='';isCoord=false;members=[];memberDirectory=[];avvisi=[];avvisiLoadedOnce=false;
   clearStoredSessionToken();
   closeMobileMenu();
   showLoginEmailStep(message);
@@ -350,7 +406,7 @@ function selectLogin(){return}
 function login(){requestCode()}
 function logout(){
   const token=authToken;
-  authToken='';currentUser=null;currentUserId=null;currentUserEmail='';isCoord=false;members=[];openPanels={};
+  authToken='';currentUser=null;currentUserId=null;currentUserEmail='';isCoord=false;members=[];memberDirectory=[];avvisi=[];avvisiLoadedOnce=false;openPanels={};
   clearStoredSessionToken();
   $('main-screen').style.display='none';
   closeMobileMenu();
@@ -360,8 +416,14 @@ function logout(){
     apiRequest('logout',{},()=>{authToken=''});
   }
 }
+function askLogout(){openDialog('confirm-logout-bg','#logout-confirm')}
+function closeLogoutConfirm(){closeDialog('confirm-logout-bg')}
+function confirmLogout(){closeLogoutConfirm();logout()}
 function showMain(){
   authFlowBusy=false;
+  currentPage='segnalazioni';
+  document.querySelectorAll('.page').forEach(p=>p.classList.toggle('active',p.id==='page-segnalazioni'));
+  document.querySelectorAll('.nav-wrap button').forEach(b=>{const active=b.dataset.page==='segnalazioni';b.classList.toggle('active',active);if(active)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current')});
   $('login-screen').classList.remove('visible');
   $('main-screen').style.display='block';
   $('welcome-msg').textContent='Ciao, '+currentUser;
@@ -369,23 +431,67 @@ function showMain(){
   $('btn-proponi').hidden=!isCoord;
   $('btn-impostazioni').hidden=!isCoord;
   $('mobile-btn-impostazioni').hidden=!isCoord;
+  $('btn-impostazioni').style.display=isCoord?'':'none';
+  $('mobile-btn-impostazioni').style.display=isCoord?'':'none';
   $('demo-note').classList.toggle('visible',DEMO_MODE);
+  $('update-now')?.addEventListener('click',()=>location.reload());
   loadSegnalazioni();
   loadIncontri();
+  loadAvvisi(true);
+  startNoticePolling();
+  requestAnimationFrame(()=>updateNavIndicator(currentPage,false));
 }
-function showPage(id){document.querySelectorAll('.page').forEach(p=>p.classList.toggle('active',p.id==='page-'+id));document.querySelectorAll('.nav-wrap button').forEach(b=>{const active=b.dataset.page===id;b.classList.toggle('active',active);if(active)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current')});closeMobileMenu()}
-function toggleMobileMenu(){const menu=$('mobile-account-menu'),trigger=$('mobile-menu-trigger'),open=!menu.classList.contains('open');menu.classList.toggle('open',open);trigger.setAttribute('aria-expanded',open?'true':'false')}
-function closeMobileMenu(){$('mobile-account-menu').classList.remove('open');$('mobile-menu-trigger').setAttribute('aria-expanded','false')}
+
+function updateNavIndicator(id,animate=true){const nav=document.querySelector('.nav-wrap'),indicator=$('nav-indicator'),btn=nav?.querySelector(`button[data-page="${id}"]`);if(!nav||!indicator||!btn)return;if(!animate)indicator.classList.add('no-transition');indicator.style.width=btn.offsetWidth+'px';indicator.style.transform=`translateX(${btn.offsetLeft}px)`;if(!animate)requestAnimationFrame(()=>requestAnimationFrame(()=>indicator.classList.remove('no-transition')))}
+function animatePageEntry(page,direction){if(!page)return;page.classList.remove('page-enter-forward','page-enter-back');void page.offsetWidth;page.classList.add(direction<0?'page-enter-back':'page-enter-forward');setTimeout(()=>page.classList.remove('page-enter-forward','page-enter-back'),260)}
+function showPage(id){if(!PRIMARY_PAGES.includes(id)||id===currentPage)return;const previous=currentPage;document.querySelectorAll('.page').forEach(p=>p.classList.toggle('active',p.id==='page-'+id));document.querySelectorAll('.nav-wrap button').forEach(b=>{const active=b.dataset.page===id;b.classList.toggle('active',active);if(active)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current')});currentPage=id;updateNavIndicator(id,true);if(previous==='incontri'){openMeetingCardId='';openPanels={};if(currentUser&&$('incontri-list'))renderIncontri()}if(id==='bacheca'){if(!avvisiLoadedOnce)loadAvvisi(false,true);else{renderAvvisi();markAvvisiSeen()}}closeMobileMenu()}
+function navIndicatorMetrics(id){const nav=document.querySelector('.nav-wrap'),btn=nav?.querySelector(`button[data-page="${id}"]`);return nav&&btn?{left:btn.offsetLeft,width:btn.offsetWidth}:null}
+function setSwipeIndicator(from,to,progress){const indicator=$('nav-indicator');if(!indicator||!from||!to)return;const p=Math.max(0,Math.min(1,progress));indicator.classList.add('swiping');indicator.style.width=(from.width+(to.width-from.width)*p)+'px';indicator.style.transform=`translateX(${from.left+(to.left-from.left)*p}px)`}
+function resetPageSwipe(restore=true){const indicator=$('nav-indicator');if(indicator)indicator.classList.remove('swiping');pageSwipe={tracking:false,horizontal:false,startX:0,startY:0,lastX:0,lastT:0,targetId:'',from:null,to:null};if(restore)requestAnimationFrame(()=>updateNavIndicator(currentPage,true))}
+function swipeTargetForDelta(dx){const currentIndex=PRIMARY_PAGES.indexOf(currentPage),step=dx<0?1:-1,nextIndex=currentIndex+step;return nextIndex>=0&&nextIndex<PRIMARY_PAGES.length?PRIMARY_PAGES[nextIndex]:''}
+function canStartPageSwipe(target,x){if(window.innerWidth>700||!currentUser||document.querySelector('.modal-bg.open,.confirm-bg.open'))return false;if(x<28||x>window.innerWidth-28)return false;return !target.closest('button,a,input,textarea,select,label,[contenteditable="true"],.nav-shell,.stats,.refresh-row,.members-modal,.notice-modal');}
+function setupPageSwipe(){const surface=$('main-screen');if(!surface)return;surface.addEventListener('touchstart',e=>{if(e.touches.length!==1)return;const t=e.touches[0];if(!canStartPageSwipe(e.target,t.clientX))return;pageSwipe={tracking:true,horizontal:false,startX:t.clientX,startY:t.clientY,lastX:t.clientX,lastT:performance.now(),targetId:'',from:navIndicatorMetrics(currentPage),to:null}}, {passive:true});surface.addEventListener('touchmove',e=>{if(!pageSwipe.tracking||e.touches.length!==1)return;const t=e.touches[0],dx=t.clientX-pageSwipe.startX,dy=t.clientY-pageSwipe.startY,ax=Math.abs(dx),ay=Math.abs(dy);if(!pageSwipe.horizontal){if(ax<10&&ay<10)return;if(ay>ax*.9){resetPageSwipe(false);return}if(ax<=ay*1.18)return;pageSwipe.horizontal=true}e.preventDefault();pageSwipe.lastX=t.clientX;pageSwipe.lastT=performance.now();const targetId=swipeTargetForDelta(dx);pageSwipe.targetId=targetId;if(!targetId){updateNavIndicator(currentPage,false);return}pageSwipe.to=navIndicatorMetrics(targetId);const travel=Math.min(180,Math.max(110,window.innerWidth*.38));setSwipeIndicator(pageSwipe.from,pageSwipe.to,Math.abs(dx)/travel)}, {passive:false});surface.addEventListener('touchend',e=>{if(!pageSwipe.tracking)return;const endX=e.changedTouches?.[0]?.clientX??pageSwipe.lastX,dx=endX-pageSwipe.startX,elapsed=Math.max(1,performance.now()-pageSwipe.lastT),recentDistance=Math.abs(endX-pageSwipe.lastX),velocity=recentDistance/elapsed;const threshold=Math.min(88,Math.max(62,window.innerWidth*.18)),targetId=swipeTargetForDelta(dx),commit=pageSwipe.horizontal&&!!targetId&&(Math.abs(dx)>=threshold||(Math.abs(dx)>=34&&velocity>.55));const indicator=$('nav-indicator');if(indicator)indicator.classList.remove('swiping');pageSwipe={tracking:false,horizontal:false,startX:0,startY:0,lastX:0,lastT:0,targetId:'',from:null,to:null};if(commit){requestAnimationFrame(()=>showPage(targetId))}else{requestAnimationFrame(()=>updateNavIndicator(currentPage,true))}}, {passive:true});surface.addEventListener('touchcancel',()=>resetPageSwipe(true),{passive:true})}
+function toggleMobileMenu(){return}
+function closeMobileMenu(){return}
 function setNetworkState(){const offline=!navigator.onLine;$('network-banner').classList.toggle('visible',offline)}
 
 function setSegFilter(filter){currentSegFilter=filter;document.querySelectorAll('#seg-filters .stat').forEach(b=>{const a=b.dataset.filter===filter;b.classList.toggle('active',a);b.setAttribute('aria-pressed',a?'true':'false')});renderSegnalazioni()}
 function loadSegnalazioni(){if(loadingSeg)return;loadingSeg=true;$('refresh-segnalazioni').disabled=true;$('table-container').innerHTML=LOADER;$('table-container').setAttribute('aria-busy','true');apiRequest('segnalazioni',{},rows=>{loadingSeg=false;$('refresh-segnalazioni').disabled=false;$('table-container').removeAttribute('aria-busy');if(!Array.isArray(rows)){$('table-container').innerHTML=emptyState('warning','Impossibile caricare le segnalazioni','Controlla la connessione e premi Aggiorna per riprovare.');apiError('Impossibile caricare le segnalazioni.');return}segnalazioni=rows;stampUpdate('seg-updated');renderSegnalazioni();populateSegSelect()})}
 function populateSegSelect(){const sel=$('modal-segnalazione');const sorted=[...segnalazioni].sort((a,b)=>segTimestamp(b.Data)-segTimestamp(a.Data));sel.innerHTML='<option value="">— Nessuna segnalazione —</option>'+sorted.map(r=>`<option value="${escapeAttr(r.ID||'')}">${escapeHtml(dateLong(r.Data)+' · '+componentDisplay(r.Componente)+(r.Recapito?' · '+r.Recapito:''))}</option>`).join('')}
-function statusMarkup(r,index){if(!isCoord)return `<span class="badge ${statusClass(r.Stato)}">${escapeHtml(statusLabel(r.Stato||'Aperta'))}</span>`;return `<select class="stato-sel" data-id="${escapeAttr(r.ID||'')}" data-index="${index}" aria-label="Stato della segnalazione"><option value="Aperta" ${(r.Stato||'Aperta')==='Aperta'?'selected':''}>Da prendere in carico</option><option value="In gestione" ${r.Stato==='In gestione'?'selected':''}>In percorso</option><option value="Chiusa" ${r.Stato==='Chiusa'?'selected':''}>Conclusa</option></select>`}
-function renderSegnalazioni(){const all=[...segnalazioni].sort((a,b)=>segTimestamp(b.Data)-segTimestamp(a.Data));const counts={all:all.length,'Aperta':all.filter(r=>(r.Stato||'Aperta')==='Aperta').length,'In gestione':all.filter(r=>r.Stato==='In gestione').length,'Chiusa':all.filter(r=>r.Stato==='Chiusa').length};$('stat-total').textContent=counts.all;$('stat-aperte').textContent=counts.Aperta;$('stat-gestione').textContent=counts['In gestione'];$('stat-chiuse').textContent=counts.Chiusa;const rows=currentSegFilter==='all'?all:all.filter(r=>(r.Stato||'Aperta')===currentSegFilter);if(!all.length){$('table-container').innerHTML=emptyState('report','Nessuna segnalazione','Le nuove segnalazioni appariranno qui.');return}if(!rows.length){$('table-container').innerHTML=emptyState('report','Nessuna segnalazione in questa categoria','Scegli un altro filtro per vedere le altre segnalazioni.');return}
- const desktop=`<div class="seg-desktop-table"><table aria-label="Segnalazioni ricevute"><thead><tr><th scope="col" style="width:18%">Data</th><th scope="col" style="width:19%">Componente</th><th scope="col" style="width:22%">Contatto</th><th scope="col" style="width:23%">Stato</th><th scope="col" style="width:18%">Azioni</th></tr></thead><tbody>${rows.map(r=>{const i=segnalazioni.indexOf(r),url=safeExternalUrl(r['Link Risposta']),meetingAction=quickMeetingAction(r),deleteAction=deleteSegAction(r);return `<tr><td>${escapeHtml(dateLong(r.Data))}</td><td><span class="badge ${componentClass(r.Componente)}">${escapeHtml(componentDisplay(r.Componente))}</span></td><td>${escapeHtml(r.Recapito||'—')}</td><td>${statusMarkup(r,i)}</td><td><div class="seg-row-actions">${url?`<a href="${escapeAttr(url)}" target="_blank" rel="noopener noreferrer">Apri risposta ${icon('external','icon icon-sm')}</a>`:''}${meetingAction}${deleteAction}${!url&&!meetingAction&&!deleteAction?'—':''}</div></td></tr>`}).join('')}</tbody></table></div>`;
- const mobile=`<div class="seg-mobile-list" aria-label="Segnalazioni ricevute">${rows.map(r=>{const i=segnalazioni.indexOf(r),st=r.Stato||'Aperta',state=st==='Chiusa'?'state-chiusa':st==='In gestione'?'state-gestione':'state-aperta',url=safeExternalUrl(r['Link Risposta']),meetingAction=quickMeetingAction(r),deleteAction=deleteSegAction(r);return `<article class="seg-mobile-card ${state}"><div class="seg-mobile-head"><div class="seg-mobile-date-wrap"><div class="seg-mobile-date-icon">${icon('report')}</div><div><div class="seg-mobile-kicker">Segnalazione</div><div class="seg-mobile-date">${escapeHtml(dateLong(r.Data))}</div></div></div>${statusMarkup(r,i)}</div><div class="seg-mobile-body"><div class="seg-mobile-field"><div class="seg-mobile-field-label">Componente</div><div class="seg-mobile-field-value"><span class="badge ${componentClass(r.Componente)}">${escapeHtml(componentDisplay(r.Componente))}</span></div></div><div class="seg-mobile-field"><div class="seg-mobile-field-label">Contatto</div><div class="seg-mobile-field-value">${escapeHtml(r.Recapito||'—')}</div></div><div class="seg-mobile-field"><div class="seg-mobile-field-label">Risposta</div><div class="seg-mobile-field-value">${url?`<a href="${escapeAttr(url)}" target="_blank" rel="noopener noreferrer">Apri risposta ${icon('external','icon icon-sm')}</a>`:'Non disponibile'}</div></div></div>${meetingAction||deleteAction?`<div class="seg-mobile-meeting-action seg-mobile-actions">${meetingAction}${deleteAction}</div>`:''}</article>`}).join('')}</div>`;
- $('table-container').innerHTML=desktop+mobile}
+function statusMarkup(r,index){const st=r.Stato||'Aperta',stateClass=st==='Chiusa'?'state-select-chiusa':st==='In gestione'?'state-select-gestione':'state-select-aperta';if(!isCoord)return `<span class="badge ${statusClass(st)}">${escapeHtml(statusLabel(st))}</span>`;return `<select class="stato-sel ${stateClass}" data-id="${escapeAttr(r.ID||'')}" data-index="${index}" aria-label="Stato della segnalazione"><option value="Aperta" ${st==='Aperta'?'selected':''}>Nuova</option><option value="In gestione" ${st==='In gestione'?'selected':''}>In corso</option><option value="Chiusa" ${st==='Chiusa'?'selected':''}>Conclusa</option></select>`}
+function renderSegnalazioni(){
+  const all=[...segnalazioni].sort((a,b)=>segTimestamp(b.Data)-segTimestamp(a.Data));
+  const counts={all:all.length,'Aperta':all.filter(r=>(r.Stato||'Aperta')==='Aperta').length,'In gestione':all.filter(r=>r.Stato==='In gestione').length,'Chiusa':all.filter(r=>r.Stato==='Chiusa').length};
+  $('stat-total').textContent=counts.all;$('stat-aperte').textContent=counts.Aperta;$('stat-gestione').textContent=counts['In gestione'];$('stat-chiuse').textContent=counts.Chiusa;
+  const rows=currentSegFilter==='all'?all:all.filter(r=>(r.Stato||'Aperta')===currentSegFilter);
+  if(!all.length){$('table-container').innerHTML=emptyState('report','Nessuna segnalazione','Le nuove segnalazioni appariranno qui.');return}
+  if(!rows.length){$('table-container').innerHTML=emptyState('report','Nessuna segnalazione in questa categoria','Scegli un altro filtro per vedere le altre segnalazioni.');return}
+
+  const desktop=`<div class="seg-desktop-list" aria-label="Segnalazioni ricevute">${rows.map(r=>{
+    const i=segnalazioni.indexOf(r),st=r.Stato||'Aperta',state=st==='Chiusa'?'state-chiusa':st==='In gestione'?'state-gestione':'state-aperta',parts=meetingParts(r.Data),url=safeExternalUrl(r['Link Risposta']),meetingAction=quickMeetingAction(r),deleteAction=deleteSegAction(r),contact=r.Recapito||'';
+    const linkedAction=meetingAction.match(/<button class="seg-meeting-state[\s\S]*?<\/button>/)?.[0]||'';
+    const createAction=meetingAction.replace(/<button class="seg-meeting-state[\s\S]*?<\/button>/,'');
+    const infoActions=(url?`<a class="seg-response-link" href="${escapeAttr(url)}" target="_blank" rel="noopener noreferrer">Apri risposta ${icon('external','icon icon-sm')}</a>`:'')+linkedAction;
+    const manageActions=createAction+deleteAction;
+    const hasActions=!!(infoActions||manageActions);
+    return `<article class="seg-desktop-card ${state}${hasActions?'':' no-actions'}">
+      <div class="seg-desktop-date-stack">${parts?`<span class="seg-desktop-date-day">${escapeHtml(parts.day)}</span><span class="seg-desktop-date-month">${escapeHtml(parts.month.toLowerCase())}</span><span class="seg-desktop-date-year">${escapeHtml(parts.year)}</span>`:`<span class="seg-desktop-date-fallback">Data</span>`}</div>
+      <div class="seg-desktop-main">
+        <div class="seg-desktop-mainline"><span class="badge ${componentClass(r.Componente)}">${escapeHtml(componentDisplay(r.Componente))}</span>${contact?`<span class="seg-desktop-contact"><span class="seg-desktop-contact-label">Contatto</span>${escapeHtml(contact)}</span>`:''}</div>
+        <div class="seg-desktop-status">${statusMarkup(r,i)}</div>
+      </div>
+      ${hasActions?`<div class="seg-desktop-actions${isCoord?'':' member-only'}">${infoActions?`<div class="seg-desktop-action-info">${infoActions}</div>`:''}${manageActions?`<div class="seg-desktop-action-buttons">${manageActions}</div>`:''}</div>`:''}
+    </article>`;
+  }).join('')}</div>`;
+
+  const mobile=`<div class="seg-mobile-list" aria-label="Segnalazioni ricevute">${rows.map(r=>{
+    const i=segnalazioni.indexOf(r),st=r.Stato||'Aperta',state=st==='Chiusa'?'state-chiusa':st==='In gestione'?'state-gestione':'state-aperta',parts=meetingParts(r.Data),url=safeExternalUrl(r['Link Risposta']),meetingAction=quickMeetingAction(r),trash=deleteSegIconAction(r),contact=r.Recapito||'';
+    const actions=(url?`<a class="seg-response-link seg-response-link-compact" href="${escapeAttr(url)}" target="_blank" rel="noopener noreferrer">Apri risposta ${icon('external','icon icon-sm')}</a>`:'')+meetingAction;
+    return `<article class="seg-mobile-card seg-mobile-card-compact ${state}">${trash}<div class="seg-mobile-row"><div class="seg-mobile-date-stack">${parts?`<span class="seg-mobile-date-day">${escapeHtml(parts.day)}</span><span class="seg-mobile-date-month">${escapeHtml(parts.month.toLowerCase())}</span><span class="seg-mobile-date-year">${escapeHtml(parts.year)}</span>`:`<span class="seg-mobile-date-fallback">Data</span>`}</div><div class="seg-mobile-maincompact"><div class="seg-mobile-mainline"><span class="badge ${componentClass(r.Componente)}">${escapeHtml(componentDisplay(r.Componente))}</span></div>${contact?`<div class="seg-mobile-contact">${escapeHtml(contact)}</div>`:''}<div class="seg-mobile-status-wrap">${statusMarkup(r,i)}</div></div></div>${actions?`<div class="seg-mobile-actions-compact${isCoord?'':' member-only'}">${actions}</div>`:''}</article>`;
+  }).join('')}</div>`;
+
+  $('table-container').innerHTML=desktop+mobile;
+}
 function updateStatus(select){const id=select.dataset.id,index=Number(select.dataset.index),next=select.value,row=segnalazioni[index];if(!isCoord||!id||!row)return;const prev=row.Stato||'Aperta';row.Stato=next;select.disabled=true;apiRequest('stato',{id,stato:next},resp=>{select.disabled=false;if(!apiSucceeded(resp)){row.Stato=prev;renderSegnalazioni();apiError(resp?.message||'Stato non aggiornato. Riprova.');return}stampUpdate('seg-updated');renderSegnalazioni();showToast('Segnalazione aggiornata')})}
 
 function askDeleteSeg(id){
@@ -418,27 +524,91 @@ function confirmDeleteSeg(){
   });
 }
 
-function loadIncontri(){if(loadingInc)return;loadingInc=true;$('refresh-incontri').disabled=true;$('incontri-list').innerHTML=LOADER;$('incontri-list').setAttribute('aria-busy','true');apiRequest('incontri',{},data=>{if(!Array.isArray(data)){finishIncontriLoad();$('incontri-list').innerHTML=emptyState('warning','Impossibile caricare gli incontri','Controlla la connessione e premi Aggiorna per riprovare.');apiError('Impossibile caricare gli incontri.');return}incontri=data;apiRequest('disponibilita',{},disp=>{disponibilita=Array.isArray(disp)?disp:[];finishIncontriLoad();stampUpdate('inc-updated');renderIncontri();if(!Array.isArray(disp))apiError('Incontri caricati, ma non le disponibilità.')})})}
+
+function noticeSeenKey(){return 'gr_avvisi_visti_'+String(currentUserId||currentUserEmail||'utente').replace(/[^a-z0-9_-]/gi,'_')}
+function getNoticeLastSeen(){const raw=safeStorageGet(localStorage,noticeSeenKey());const t=Date.parse(raw||'');return Number.isFinite(t)?t:0}
+function noticeTime(value){const d=new Date(value||'');if(Number.isNaN(d.getTime()))return '';const today=new Date();const same=today.getFullYear()===d.getFullYear()&&today.getMonth()===d.getMonth()&&today.getDate()===d.getDate();if(same)return 'Oggi · '+new Intl.DateTimeFormat('it-IT',{hour:'2-digit',minute:'2-digit'}).format(d);return new Intl.DateTimeFormat('it-IT',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}).format(d).replace(',', ' ·')}
+function noticeIsNew(a){if(typeof a?.nuovo==='boolean')return a.nuovo;const t=Date.parse(a?.creato||'');return Number.isFinite(t)&&t>getNoticeLastSeen()&&String(a?.autoreId||'')!==String(currentUserId||'')}
+function updateAvvisiUnreadBadge(){const badge=$('avvisi-unread');if(!badge)return;const n=avvisi.filter(noticeIsNew).length;badge.textContent=n>9?'9+':String(n);badge.hidden=n===0}
+function markAvvisiSeen(){if(!currentUserId)return;const latest=avvisi.reduce((max,a)=>{const t=Date.parse(a.creato||'');return Number.isFinite(t)&&t>max?t:max},0),seenIso=new Date(latest||Date.now()).toISOString();safeStorageSet(localStorage,noticeSeenKey(),seenIso);avvisi.forEach(a=>{a.nuovo=false});const badge=$('avvisi-unread');if(badge)badge.hidden=true;document.querySelectorAll('.notice-card.new').forEach(card=>card.classList.remove('new'));document.querySelectorAll('.notice-new-badge').forEach(el=>el.remove());if(!DEMO_MODE)apiRequest('segna_avvisi_letti',{fino_a:seenIso},()=>{})}
+function loadAvvisi(silent=false,markSeenAfter=false){if(markSeenAfter)markAvvisiAfterLoad=true;if(loadingAvvisi)return;loadingAvvisi=true;const refresh=$('refresh-avvisi');if(refresh)refresh.disabled=true;if(!silent&&$('avvisi-list')){$('avvisi-list').innerHTML=LOADER;$('avvisi-list').setAttribute('aria-busy','true')}apiRequest('avvisi',{},rows=>{loadingAvvisi=false;avvisiLoadedOnce=true;if(refresh)refresh.disabled=false;if($('avvisi-list'))$('avvisi-list').removeAttribute('aria-busy');if(!Array.isArray(rows)){if(!silent&&$('avvisi-list'))$('avvisi-list').innerHTML=emptyState('warning','Impossibile caricare la bacheca','Controlla la connessione e premi Aggiorna per riprovare.');if(!silent)apiError('Impossibile caricare la bacheca.');markAvvisiAfterLoad=false;return}avvisi=rows;stampUpdate('avvisi-updated');renderAvvisi();updateAvvisiUnreadBadge();const shouldMark=markAvvisiAfterLoad||currentPage==='bacheca';markAvvisiAfterLoad=false;if(shouldMark)markAvvisiSeen()})}
+function bachecaIsOpen(){return !!$('page-bacheca')?.classList.contains('active')}
+function refreshNoticeBadge(){if(!currentUser||!navigator.onLine||document.visibilityState==='hidden')return;loadAvvisi(true,bachecaIsOpen())}
+function startNoticePolling(){if(noticePollTimer)clearInterval(noticePollTimer);noticePollTimer=setInterval(refreshNoticeBadge,120000)}
+function renderAvvisi(){const root=$('avvisi-list');if(!root)return;if(!avvisi.length){root.innerHTML=emptyState('megaphone','Nessun avviso','La bacheca è vuota. Puoi pubblicare il primo avviso.');return}const sorted=[...avvisi].sort((a,b)=>Date.parse(b.creato||0)-Date.parse(a.creato||0));root.innerHTML=sorted.map(a=>{const fresh=noticeIsNew(a),can=!!a.puoiGestire||String(a.autoreId||'')===String(currentUserId||'');return `<article class="notice-card${fresh?' new':''}" data-notice-id="${escapeAttr(a.id)}"><div class="notice-card-head"><div class="notice-title-wrap"><div class="notice-title-line"><h3>${escapeHtml(a.titolo||'Avviso')}</h3>${fresh?'<span class="notice-new-badge">Nuovo</span>':''}</div><div class="notice-meta"><span>${escapeHtml(a.autore||'Membro')}</span><span aria-hidden="true">·</span><time>${escapeHtml(noticeTime(a.creato))}</time>${a.aggiornato&&a.aggiornato!==a.creato?'<span>· modificato</span>':''}</div></div>${can?`<div class="notice-actions"><button class="notice-icon-btn" type="button" data-action="edit-notice" aria-label="Modifica avviso" title="Modifica">${icon('edit','icon icon-sm')}</button><button class="notice-icon-btn danger" type="button" data-action="delete-notice" aria-label="Elimina avviso" title="Elimina">${icon('trash','icon icon-sm')}</button></div>`:''}</div><div class="notice-text">${escapeHtml(a.testo||'')}</div></article>`}).join('')}
+function openNoticeModal(a=null){editingAvvisoId=a?.id||null;$('notice-modal-title').textContent=a?'Modifica avviso':'Nuovo avviso';$('notice-title').value=a?.titolo||'';$('notice-text').value=a?.testo||'';$('notice-save').textContent=a?'Salva modifiche':'Pubblica';$('notice-error').textContent='';$('notice-error').classList.remove('visible');updateNoticeCharCount();openDialog('modal-avviso-bg','#notice-title')}
+function closeNoticeModal(){editingAvvisoId=null;setNoticeSaving(false);closeDialog('modal-avviso-bg')}
+function updateNoticeCharCount(){const el=$('notice-char-count');if(el)el.textContent=String(($('notice-text')?.value||'').length)}
+function setNoticeSaving(v){const b=$('notice-save');if(!b)return;b.disabled=v;b.textContent=v?'Salvataggio…':editingAvvisoId?'Salva modifiche':'Pubblica'}
+function showNoticeError(msg){const el=$('notice-error');if(!el)return;el.textContent=msg||'';el.classList.toggle('visible',!!msg)}
+function saveNotice(){if(!navigator.onLine&&!DEMO_MODE){showNoticeError('Sei offline. Riprova quando la connessione è disponibile.');return}const titolo=$('notice-title').value.trim(),testo=$('notice-text').value.trim();if(!titolo){showNoticeError('Inserisci un titolo.');$('notice-title').focus();return}if(!testo){showNoticeError('Scrivi il testo dell’avviso.');$('notice-text').focus();return}showNoticeError('');setNoticeSaving(true);const editing=!!editingAvvisoId,params={titolo,testo};if(editing)params.id=editingAvvisoId;apiRequest(editing?'modifica_avviso':'nuovo_avviso',params,resp=>{setNoticeSaving(false);if(!apiSucceeded(resp)){showNoticeError(resp?.message||'Avviso non salvato. Riprova.');return}closeNoticeModal();showToast(editing?'Avviso aggiornato':'Avviso pubblicato');loadAvvisi(true)})}
+function askDeleteNotice(id){const a=avvisi.find(x=>String(x.id)===String(id));if(!a||!(a.puoiGestire||String(a.autoreId||'')===String(currentUserId||'')))return;deletingAvvisoId=id;$('confirm-avviso-text').textContent=`L’avviso “${a.titolo||'senza titolo'}” non sarà più visibile nella bacheca. Vuoi continuare?`;openDialog('confirm-avviso-bg','#notice-delete-confirm')}
+function closeDeleteNotice(){deletingAvvisoId=null;closeDialog('confirm-avviso-bg')}
+function confirmDeleteNotice(){if(!deletingAvvisoId)return;if(!navigator.onLine&&!DEMO_MODE){apiError('Sei offline.');return}const id=deletingAvvisoId,btn=$('notice-delete-confirm');if(btn){btn.disabled=true;btn.textContent='Eliminazione…'}apiRequest('elimina_avviso',{id},resp=>{if(btn){btn.disabled=false;btn.innerHTML=icon('trash')+'Elimina'}if(!apiSucceeded(resp)){closeDeleteNotice();apiError(resp?.message||'Avviso non eliminato.');return}avvisi=avvisi.filter(a=>String(a.id)!==String(id));closeDeleteNotice();renderAvvisi();updateAvvisiUnreadBadge();showToast('Avviso eliminato')})}
+
+function loadIncontri(){if(loadingInc)return;loadingInc=true;$('refresh-incontri').disabled=true;$('incontri-list').innerHTML=LOADER;$('incontri-list').setAttribute('aria-busy','true');let meetingsResult=null,availabilityResult=null,finished=0;const complete=()=>{finished++;if(finished<2)return;if(!Array.isArray(meetingsResult)){finishIncontriLoad();$('incontri-list').innerHTML=emptyState('warning','Impossibile caricare gli incontri','Controlla la connessione e premi Aggiorna per riprovare.');apiError('Impossibile caricare gli incontri.');return}incontri=meetingsResult;disponibilita=Array.isArray(availabilityResult)?availabilityResult:[];finishIncontriLoad();stampUpdate('inc-updated');renderIncontri();if(!Array.isArray(availabilityResult))apiError('Incontri caricati, ma non le disponibilità.')};apiRequest('incontri',{},data=>{meetingsResult=data;complete()});apiRequest('disponibilita',{},data=>{availabilityResult=data;complete()})}
 function finishIncontriLoad(){loadingInc=false;incontriLoadedOnce=true;$('refresh-incontri').disabled=false;$('incontri-list').removeAttribute('aria-busy');if(segnalazioni.length)renderSegnalazioni()}
-function getResponse(name,id){return disponibilita.filter(d=>d.membro===name&&String(d.incontro)===String(id)).slice(-1)[0]?.risposta||null}
-function dispCounts(id){let yes=0,no=0;for(const n of members){const r=getResponse(n,id);if(r==='si')yes++;else if(r==='no')no++}return{yes,no,wait:Math.max(0,members.length-yes-no),total:members.length}}
-function renderDispGroup(title,list,type){return `<div class="availability-group"><div class="availability-group-title"><span>${escapeHtml(title)}</span><span class="availability-group-count">${list.length}</span></div>${list.map(n=>{const ac=avatarColors(n),ini=n.split(/\s+/).map(p=>p[0]).join('').slice(0,2).toUpperCase(),me=n===currentUser,label=type==='yes'?'Disponibile':type==='no'?'Non disponibile':'In attesa';return `<div class="member-row${me?' me':''}"><div class="member-info"><div class="avatar" style="background:${ac.bg};color:${ac.fg}">${escapeHtml(ini)}</div><div class="member-name-row">${escapeHtml(n)}${me?'<span class="you-badge">Tu</span>':''}</div></div><span class="chip chip-${type}">${escapeHtml(label)}</span></div>`}).join('')}</div>`}
-function renderDispPanel(id){const groups={yes:[],no:[],wait:[]};[...members].sort((a,b)=>a.localeCompare(b,'it',{sensitivity:'base'})).forEach(n=>{const r=getResponse(n,id);groups[r==='si'?'yes':r==='no'?'no':'wait'].push(n)});return renderDispGroup('Disponibili',groups.yes,'yes')+renderDispGroup('Non disponibili',groups.no,'no')+renderDispGroup('In attesa',groups.wait,'wait')}
-function renderIncontri(){const future=incontri.filter(i=>!isPast(i)).sort((a,b)=>meetingTimestamp(a)-meetingTimestamp(b)),past=incontri.filter(isPast).sort((a,b)=>meetingTimestamp(b)-meetingTimestamp(a));let html='';if(!future.length&&!past.length){$('incontri-list').innerHTML=emptyState('calendar','Nessun incontro','Gli incontri proposti compariranno qui.');return}if(future.length){html+=`<div class="incontri-list-stack future">${future.map(renderMeetingCard).join('')}</div>`}else{html+=emptyState('calendar','Nessun incontro in programma','Puoi consultare gli incontri conclusi qui sotto.')}if(past.length){html+=`<button class="past-toggle" type="button" data-action="toggle-past"><span>Incontri conclusi · ${past.length}</span><span>${showPastMeetings?'Nascondi':'Mostra'} ${icon(showPastMeetings?'chevron-up':'chevron-down','icon icon-sm')}</span></button>`;if(showPastMeetings)html+=`<div class="incontri-list-stack past">${past.map(renderMeetingCard).join('')}</div>`}$('incontri-list').innerHTML=html;for(const [id,open] of Object.entries(openPanels)){if(open){const wrap=$('disp-wrap-'+id);if(wrap){wrap.classList.add('open');wrap.style.maxHeight='none'}}}}
-function renderMeetingCard(inc){const date=meetingDate(inc),dp=meetingParts(inc.dataIso||inc.titolo),past=isPast(inc),today=isToday(inc),cls=past?'passato':today?'oggi':'futuro',my=getResponse(currentUser,inc.id),myText=my==='si'?'Hai indicato: disponibile':my==='no'?'Hai indicato: non disponibile':'Non hai ancora risposto',counts=dispCounts(inc.id),pct=counts.total?Math.round(counts.yes/counts.total*100):0,open=!!openPanels[inc.id],seg=inc.segnalazione?parseMeetingSummary(inc.segnalazione):null;
- const head=dp?`<div class="inc-date-heading"><div class="inc-date-tile"><span class="inc-date-month">${escapeHtml(dp.month)}</span><span class="inc-date-day">${escapeHtml(dp.day)}</span></div><div><div class="inc-date-weekday-out">${escapeHtml(dp.weekday)}</div><div class="inc-date-year">${escapeHtml(dp.year)}</div></div><div class="inc-date-tags">${today?'<span class="tag-oggi">Oggi</span>':''}${past?'<span class="tag-passato">Concluso</span>':''}</div></div>`:`<div class="inc-date-heading"><div></div><div class="inc-date-fallback">Data da verificare</div></div>`;
+function activeMemberEntries(){if(memberDirectory.length)return memberDirectory;return members.map(n=>({id:n===currentUser?currentUserId||'':'',nome:n,ruolo:n===currentUser&&isCoord?'coordinatore':'membro'}))}
+function responseForMember(member,id){const m=typeof member==='string'?{id:member===currentUser?currentUserId||'':'',nome:member}:member||{};const targetId=String(m.id||'').trim(),targetName=normalizeCompare(m.nome||'');return disponibilita.filter(d=>{if(String(d.incontro)!==String(id))return false;const rowId=String(d.membroId||'').trim();if(targetId&&rowId)return rowId===targetId;return !rowId&&targetName&&normalizeCompare(d.membro||'')===targetName}).slice(-1)[0]?.risposta||null}
+function getResponse(member,id){return responseForMember(member,id)}
+function dispCounts(id){let yes=0,no=0;const entries=activeMemberEntries();for(const m of entries){const r=responseForMember(m,id);if(r==='si')yes++;else if(r==='no')no++}return{yes,no,wait:Math.max(0,entries.length-yes-no),total:entries.length}}
+function renderDispGroup(title,list,type){return `<div class="availability-group"><div class="availability-group-title"><span>${escapeHtml(title)}</span><span class="availability-group-count">${list.length}</span></div>${list.map(m=>{const n=m.nome||'Membro',ac=avatarColors(n),ini=n.split(/\s+/).map(p=>p[0]).join('').slice(0,2).toUpperCase(),me=m.id?String(m.id)===String(currentUserId):n===currentUser,label=type==='yes'?'Disponibile':type==='no'?'Non disponibile':'In attesa';return `<div class="member-row${me?' me':''}"><div class="member-info"><div class="avatar" style="background:${ac.bg};color:${ac.fg}">${escapeHtml(ini)}</div><div class="member-name-row">${escapeHtml(n)}${me?'<span class="you-badge">Tu</span>':''}</div></div><span class="chip chip-${type}">${escapeHtml(label)}</span></div>`}).join('')}</div>`}
+function renderDispPanel(id){const groups={yes:[],no:[],wait:[]};activeMemberEntries().slice().sort((a,b)=>(a.nome||'').localeCompare(b.nome||'','it',{sensitivity:'base'})).forEach(m=>{const r=responseForMember(m,id);groups[r==='si'?'yes':r==='no'?'no':'wait'].push(m)});return renderDispGroup('Disponibili',groups.yes,'yes')+renderDispGroup('Non disponibili',groups.no,'no')+renderDispGroup('In attesa',groups.wait,'wait')}
+function renderIncontri(){const future=incontri.filter(i=>!isPast(i)).sort((a,b)=>meetingTimestamp(a)-meetingTimestamp(b)),past=incontri.filter(isPast).sort((a,b)=>meetingTimestamp(b)-meetingTimestamp(a));let html='';if(!future.length&&!past.length){$('incontri-list').innerHTML=emptyState('calendar','Nessun incontro','Gli incontri proposti compariranno qui.');return}if(future.length){html+=`<div class="incontri-list-stack future">${future.map(renderMeetingCard).join('')}</div>`}else{html+=emptyState('calendar','Nessun incontro in programma','Puoi consultare gli incontri conclusi qui sotto.')}if(past.length){html+=`<button class="past-toggle" type="button" data-action="toggle-past"><span>Incontri conclusi · ${past.length}</span><span>${showPastMeetings?'Nascondi':'Mostra'} ${icon(showPastMeetings?'chevron-up':'chevron-down','icon icon-sm')}</span></button>`;if(showPastMeetings)html+=`<div class="incontri-list-stack past">${past.map(renderMeetingCard).join('')}</div>`}$('incontri-list').innerHTML=html;for(const [id,open] of Object.entries(openPanels)){if(open){const wrap=$('disp-wrap-'+id);if(wrap){wrap.classList.add('open');wrap.style.maxHeight='none'}}}if(openMeetingCardId){const shell=document.querySelector(`.inc-card[data-meeting-id="${openMeetingCardId}"] .inc-details-shell`);if(shell){shell.classList.add('open');shell.style.maxHeight='none';}}}
+function setMeetingCardOpen(id,open){const card=[...document.querySelectorAll('.inc-card[data-meeting-id]')].find(x=>String(x.dataset.meetingId)===String(id));if(!card)return;const shell=card.querySelector('.inc-details-shell');const btn=card.querySelector('[data-action="toggle-meeting-card"]');const labels=card.querySelectorAll('.inc-toggle-label');const icons=card.querySelectorAll('.inc-toggle-icon');card.classList.toggle('open',open);if(btn)btn.setAttribute('aria-expanded',open?'true':'false');labels.forEach(el=>el.textContent=open?'Nascondi dettagli':'Mostra dettagli');icons.forEach(el=>el.innerHTML=icon(open?'chevron-up':'chevron-down','icon icon-sm'));if(!shell)return;clearTimeout(shell._transitionTimer);if(open){shell.style.maxHeight='0px';shell.classList.add('open');requestAnimationFrame(()=>requestAnimationFrame(()=>{shell.style.maxHeight=shell.scrollHeight+'px'}));shell._transitionTimer=setTimeout(()=>{if(openMeetingCardId===id&&shell.classList.contains('open'))shell.style.maxHeight='none'},360)}else{const h=shell.getBoundingClientRect().height||shell.scrollHeight;shell.style.maxHeight=h+'px';requestAnimationFrame(()=>requestAnimationFrame(()=>{shell.style.maxHeight='0px';shell.classList.remove('open')}))}}
+function toggleMeetingCard(id){if(openMeetingCardId&&openMeetingCardId!==id)setMeetingCardOpen(openMeetingCardId,false);const opening=openMeetingCardId!==id;openMeetingCardId=opening?id:'';setMeetingCardOpen(id,opening)}
+function renderMeetingCard(inc){
+ const dp=meetingParts(inc.dataIso||inc.titolo),past=isPast(inc),today=isToday(inc),cls=past?'passato':today?'oggi':'futuro',my=responseForMember({id:currentUserId,nome:currentUser},inc.id),myText=my==='si'?'Disponibile':my==='no'?'Non disponibile':'Non hai ancora risposto',counts=dispCounts(inc.id),total=counts.total||0,yesPct=total?Math.round(counts.yes/total*100):0,noPct=total?Math.round(counts.no/total*100):0,waitPct=Math.max(0,100-yesPct-noPct),open=!!openPanels[inc.id],seg=inc.segnalazione?parseMeetingSummary(inc.segnalazione):null,component=seg?.component?componentDisplay(seg.component):'Incontro',componentCls=seg?.component?componentClass(seg.component):'badge-neutral',cardOpen=openMeetingCardId===inc.id;
+ const summaryBar=`<div class="progress-bar progress-bar-multi compact"><div class="progress-seg yes" style="width:${yesPct}%"></div><div class="progress-seg no" style="width:${noPct}%"></div><div class="progress-seg wait" style="width:${waitPct}%"></div></div>`;
+ const quickResponse=!past?`<div class="inc-quick-response"><div class="inc-quick-response-copy"><span class="inc-quick-response-label">La tua disponibilità</span><span class="inc-response-state" id="my-state-${escapeAttr(inc.id)}">${escapeHtml(myText)}</span></div><div class="inc-response-buttons inc-quick-response-buttons"><button class="btn-yes ${my==='si'?'active':''}" id="btn-yes-${escapeAttr(inc.id)}" type="button" data-action="availability" data-response="si">${icon('check')}Ci sono</button><button class="btn-no ${my==='no'?'active':''}" id="btn-no-${escapeAttr(inc.id)}" type="button" data-action="availability" data-response="no">${icon('x')}Non posso</button></div></div>`:'';
  const linked=seg?`<section class="inc-section inc-section-linked"><div class="inc-linked"><div class="inc-linked-icon">${icon('report')}</div><div><span class="inc-linked-label">Segnalazione collegata</span><div class="inc-linked-details"><span class="inc-linked-main">${escapeHtml(dateBadge(seg.date))}</span>${seg.component?`<span class="inc-linked-meta">${escapeHtml(componentDisplay(seg.component))}</span>`:''}</div>${seg.contact?`<div class="inc-linked-compact-note">Contatto: ${escapeHtml(seg.contact)}</div>`:''}</div></div></section>`:'';
- const response=!past?`<section class="inc-section inc-section-response"><div class="inc-section-surface"><div class="inc-section-header"><div class="inc-section-kicker">La tua disponibilità</div></div><div class="inc-response-row"><div><div class="inc-response-state" id="my-state-${escapeAttr(inc.id)}">${escapeHtml(myText)}</div></div><div class="inc-response-buttons"><button class="btn-yes ${my==='si'?'active':''}" id="btn-yes-${escapeAttr(inc.id)}" type="button" data-action="availability" data-response="si">${icon('check')}Ci sono</button><button class="btn-no ${my==='no'?'active':''}" id="btn-no-${escapeAttr(inc.id)}" type="button" data-action="availability" data-response="no">${icon('x')}Non posso</button></div></div></div></section>`:'';
- const attendance=`<section class="inc-section inc-section-attendance"><div class="inc-section-surface"><div class="inc-summary-top"><div class="inc-summary-text"><div class="inc-section-kicker">Disponibilità del gruppo</div><p class="progress-label" id="plabel-${escapeAttr(inc.id)}">${counts.yes} disponibili su ${counts.total}</p></div><div class="inc-summary-side">${counts.wait} in attesa</div></div><div class="progress-bar"><div class="progress-fill" id="fill-${escapeAttr(inc.id)}" style="width:${pct}%"></div></div><div class="attendance-breakdown" id="breakdown-${escapeAttr(inc.id)}"><span class="yes">${counts.yes} disponibili</span><span class="no">${counts.no} non disponibili</span><span>${counts.wait} in attesa</span></div><button class="btn-small availability-trigger" id="disp-btn-${escapeAttr(inc.id)}" type="button" data-action="toggle-availability" aria-expanded="${open?'true':'false'}"><span class="availability-label">${icon(open?'chevron-up':'chevron-down')}<span>${open?'Nascondi disponibilità':'Vedi disponibilità'}</span></span><span class="availability-count">${counts.yes} sì · ${counts.no} no · ${counts.wait} in attesa</span></button></div></section>`;
+ const attendance=`<section class="inc-section inc-section-attendance"><div class="inc-section-surface"><div class="inc-summary-top"><div class="inc-summary-text"><div class="inc-section-kicker">Disponibilità del gruppo</div><p class="progress-label" id="plabel-${escapeAttr(inc.id)}">${counts.yes} disponibili su ${counts.total}</p></div><div class="inc-summary-side">${counts.wait} in attesa</div></div><div class="progress-bar progress-bar-multi"><div class="progress-seg yes" id="fill-${escapeAttr(inc.id)}-yes" style="width:${yesPct}%"></div><div class="progress-seg no" id="fill-${escapeAttr(inc.id)}-no" style="width:${noPct}%"></div><div class="progress-seg wait" id="fill-${escapeAttr(inc.id)}-wait" style="width:${waitPct}%"></div></div><div class="attendance-breakdown" id="breakdown-${escapeAttr(inc.id)}"><span class="yes">${counts.yes} disponibili</span><span class="no">${counts.no} non disponibili</span><span class="wait">${counts.wait} in attesa</span></div><button class="btn-small availability-trigger" id="disp-btn-${escapeAttr(inc.id)}" type="button" data-action="toggle-availability" aria-expanded="${open?'true':'false'}"><span class="availability-label">${icon(open?'chevron-up':'chevron-down')}<span>${open?'Nascondi disponibilità':'Vedi disponibilità'}</span></span><span class="availability-count">${counts.yes} sì · ${counts.no} no · ${counts.wait} in attesa</span></button></div></section>`;
  const details=`<div class="disp-panel-wrap${open?' open':''}" id="disp-wrap-${escapeAttr(inc.id)}"><div class="disp-panel">${renderDispPanel(inc.id)}</div></div>`;
- return `<article class="inc-card ${cls}" data-meeting-id="${escapeAttr(inc.id)}">${head}<div class="inc-meta-row"><span class="inc-meta-item">${icon('clock','icon icon-sm')}<strong>${escapeHtml(inc.orario||'Orario da definire')}</strong></span>${inc.luogo?`<span class="inc-meta-separator">·</span><span class="inc-meta-item inc-meta-place">${icon('pin','icon icon-sm')}${escapeHtml(inc.luogo)}</span>`:''}</div>${response}${attendance}${linked}${details}${isCoord?`<div class="inc-admin-actions"><button class="btn-small" type="button" data-action="edit-meeting">${icon('edit')}Modifica</button><button class="btn-danger" type="button" data-action="delete-meeting">${icon('trash')}Elimina</button></div>`:''}</article>`}
+ const admin=isCoord?`<div class="inc-admin-actions"><button class="btn-small" type="button" data-action="edit-meeting">${icon('edit')}Modifica</button><button class="btn-danger" type="button" data-action="delete-meeting">${icon('trash')}Elimina</button></div>`:'';
+ const metaRow=`<div class="inc-detail-meta"><span class="inc-meta-item">${icon('clock','icon icon-sm')}<strong>${escapeHtml(inc.orario||'Orario da definire')}</strong></span>${inc.luogo?`<span class="inc-meta-separator">·</span><span class="inc-meta-item inc-meta-place">${icon('pin','icon icon-sm')}${escapeHtml(inc.luogo)}</span>`:''}${today?'<span class="tag-oggi">Oggi</span>':''}${past?'<span class="tag-passato">Concluso</span>':''}</div>`;
+ const toggleLabel=cardOpen?'Nascondi dettagli':'Mostra dettagli';
+ const desktopSummary=`<button class="inc-summary-button" type="button" data-action="toggle-meeting-card" aria-expanded="${cardOpen?'true':'false'}"><div class="inc-summary-date"><div class="inc-date-tile"><span class="inc-date-month">${dp?escapeHtml(dp.month):'---'}</span><span class="inc-date-day">${dp?escapeHtml(dp.day):'?'}</span></div><div class="inc-summary-year">${dp?escapeHtml(dp.year):''}</div></div><div class="inc-summary-main"><div class="inc-summary-head"><div class="inc-summary-title"><span class="badge ${componentCls}">${escapeHtml(component)}</span>${dp?`<div class="inc-summary-weekday">${escapeHtml(dp.weekday)}</div>`:''}</div><div class="inc-summary-toggle"><span class="inc-toggle-label">${toggleLabel}</span><span class="inc-toggle-icon">${icon(cardOpen?'chevron-up':'chevron-down','icon icon-sm')}</span></div></div><div class="inc-summary-counts"><span class="yes">${counts.yes} disponibili</span><span class="no">${counts.no} no</span><span class="wait">${counts.wait} in attesa</span></div>${summaryBar}</div></button>`;
+ const mobileSummary=`<button class="inc-mobile-summary" type="button" data-action="toggle-meeting-card" aria-expanded="${cardOpen?'true':'false'}"><div class="inc-mobile-datebox">${dp?`<span class="inc-mobile-month">${escapeHtml(dp.month)}</span><span class="inc-mobile-day">${escapeHtml(dp.day)}</span><span class="inc-mobile-year">${escapeHtml(dp.year)}</span>`:`<span class="inc-mobile-fallback">Data</span>`}</div><div class="inc-mobile-main"><div class="inc-mobile-toprow"><span class="badge ${componentCls}">${escapeHtml(component)}</span><div class="inc-mobile-tags">${today?'<span class="tag-oggi">Oggi</span>':''}${past?'<span class="tag-passato">Concluso</span>':''}</div></div>${dp?`<div class="inc-mobile-status">${escapeHtml(dp.weekday)}</div>`:''}<div class="inc-mobile-counts"><span class="yes">${counts.yes} disponibili</span><span class="no">${counts.no} no</span><span>${counts.wait} in attesa</span></div>${summaryBar}<div class="inc-mobile-more inc-toggle-label">${toggleLabel}</div></div><span class="inc-mobile-chevron inc-toggle-icon">${icon(cardOpen?'chevron-up':'chevron-down','icon icon-sm')}</span></button>`;
+ const detailBlock=`<div class="inc-details-shell${cardOpen?' open':''}" id="details-${escapeAttr(inc.id)}"><div class="inc-details-inner">${metaRow}${linked}${attendance}${details}${admin}</div></div>`;
+ if(window.innerWidth<=700){return `<article class="inc-card inc-card-mobile ${cls}${cardOpen?' open':''}" data-meeting-id="${escapeAttr(inc.id)}">${mobileSummary}${quickResponse}${detailBlock}</article>`}
+ return `<article class="inc-card inc-card-desktop ${cls}${cardOpen?' open':''}" data-meeting-id="${escapeAttr(inc.id)}">${desktopSummary}${quickResponse}${detailBlock}</article>`;
+}
 function togglePanel(id){openPanels[id]=!openPanels[id];const wrap=$('disp-wrap-'+id),btn=$('disp-btn-'+id),open=openPanels[id];if(btn){btn.setAttribute('aria-expanded',open?'true':'false');const label=btn.querySelector('.availability-label');if(label)label.innerHTML=icon(open?'chevron-up':'chevron-down')+`<span>${open?'Nascondi disponibilità':'Vedi disponibilità'}</span>`}if(!wrap)return;if(open){wrap.classList.add('open');wrap.style.maxHeight=wrap.scrollHeight+'px';setTimeout(()=>{if(openPanels[id])wrap.style.maxHeight='none'},270)}else{wrap.style.maxHeight=wrap.scrollHeight+'px';requestAnimationFrame(()=>{wrap.style.maxHeight='0px';wrap.classList.remove('open')})}}
-function updateMeetingState(id){const counts=dispCounts(id),pct=counts.total?Math.round(counts.yes/counts.total*100):0,my=getResponse(currentUser,id);const fill=$('fill-'+id),label=$('plabel-'+id),breakdown=$('breakdown-'+id),state=$('my-state-'+id),yes=$('btn-yes-'+id),no=$('btn-no-'+id),btn=$('disp-btn-'+id);if(fill)fill.style.width=pct+'%';if(label)label.textContent=`${counts.yes} disponibili su ${counts.total}`;if(breakdown)breakdown.innerHTML=`<span class="yes">${counts.yes} disponibili</span><span class="no">${counts.no} non disponibili</span><span>${counts.wait} in attesa</span>`;if(state)state.textContent=my==='si'?'Hai indicato: disponibile':my==='no'?'Hai indicato: non disponibile':'Non hai ancora risposto';if(yes)yes.classList.toggle('active',my==='si');if(no)no.classList.toggle('active',my==='no');if(btn){const c=btn.querySelector('.availability-count');if(c)c.textContent=`${counts.yes} sì · ${counts.no} no · ${counts.wait} in attesa`}const wrap=$('disp-wrap-'+id);if(wrap){const panel=wrap.querySelector('.disp-panel'),inc=incontri.find(i=>String(i.id)===String(id)),seg=inc?.segnalazione?parseMeetingSummary(inc.segnalazione):null;if(panel)panel.innerHTML=(seg?`<div class="seg-info"><div class="seg-info-row">Data: <span>${escapeHtml(dateBadge(seg.date))}</span></div>${seg.component?`<div class="seg-info-row">Componente: <span>${escapeHtml(componentDisplay(seg.component))}</span></div>`:''}${seg.contact?`<div class="seg-info-row">Contatto: <span>${escapeHtml(seg.contact)}</span></div>`:''}</div>`:'')+renderDispPanel(id)}}
-function saveAvailability(id,response){if(!navigator.onLine&&!DEMO_MODE){apiError('Sei offline. Riprova quando la connessione è disponibile.');return}const matches=disponibilita.map((d,i)=>({d,i})).filter(x=>x.d.membro===currentUser&&String(x.d.incontro)===String(id)),idx=matches.length?matches.at(-1).i:-1,old=idx>=0?{...disponibilita[idx]}:null;if(idx>=0)disponibilita[idx].risposta=response;else disponibilita.push({membro:currentUser,incontro:id,risposta:response});updateMeetingState(id);setAvailabilitySaving(id,response,true);apiRequest('salva',{membro:currentUser,incontro:id,risposta:response},resp=>{setAvailabilitySaving(id,response,false);if(!apiSucceeded(resp)){const now=disponibilita.map((d,i)=>({d,i})).filter(x=>x.d.membro===currentUser&&String(x.d.incontro)===String(id)).at(-1)?.i;if(old&&now!==undefined)disponibilita[now]=old;else if(!old&&now!==undefined)disponibilita.splice(now,1);updateMeetingState(id);apiError(resp?.message||'Disponibilità non salvata.');return}stampUpdate('inc-updated');showToast(response==='si'?'Disponibilità salvata: ci sei':'Disponibilità salvata: non puoi')})}
+function updateMeetingState(id){const counts=dispCounts(id),total=counts.total||0,yesPct=total?Math.round(counts.yes/total*100):0,noPct=total?Math.round(counts.no/total*100):0,waitPct=Math.max(0,100-yesPct-noPct),my=responseForMember({id:currentUserId,nome:currentUser},id),card=[...document.querySelectorAll('.inc-card[data-meeting-id]')].find(x=>String(x.dataset.meetingId)===String(id)),label=$('plabel-'+id),breakdown=$('breakdown-'+id),state=$('my-state-'+id),yes=$('btn-yes-'+id),no=$('btn-no-'+id),btn=$('disp-btn-'+id);if(card){card.querySelectorAll('.progress-bar-multi').forEach(bar=>{const y=bar.querySelector('.progress-seg.yes'),n=bar.querySelector('.progress-seg.no'),w=bar.querySelector('.progress-seg.wait');if(y)y.style.width=yesPct+'%';if(n)n.style.width=noPct+'%';if(w)w.style.width=waitPct+'%'});card.querySelectorAll('.inc-summary-counts,.inc-mobile-counts').forEach(el=>el.innerHTML=`<span class="yes">${counts.yes} disponibili</span><span class="no">${counts.no} no</span><span class="wait">${counts.wait} in attesa</span>`)}if(label)label.textContent=`${counts.yes} disponibili su ${counts.total}`;if(breakdown)breakdown.innerHTML=`<span class="yes">${counts.yes} disponibili</span><span class="no">${counts.no} non disponibili</span><span class="wait">${counts.wait} in attesa</span>`;if(state)state.textContent=my==='si'?'Hai indicato: disponibile':my==='no'?'Hai indicato: non disponibile':'Non hai ancora risposto';if(yes)yes.classList.toggle('active',my==='si');if(no)no.classList.toggle('active',my==='no');if(btn){const c=btn.querySelector('.availability-count');if(c)c.textContent=`${counts.yes} sì · ${counts.no} no · ${counts.wait} in attesa`}const wrap=$('disp-wrap-'+id);if(wrap){const panel=wrap.querySelector('.disp-panel');if(panel)panel.innerHTML=renderDispPanel(id)}}
+function saveAvailability(id,response){if(!navigator.onLine&&!DEMO_MODE){apiError('Sei offline. Riprova quando la connessione è disponibile.');return}const same=x=>String(x.d.incontro)===String(id)&&((currentUserId&&String(x.d.membroId||'')===String(currentUserId))||(!x.d.membroId&&normalizeCompare(x.d.membro||'')===normalizeCompare(currentUser))),matches=disponibilita.map((d,i)=>({d,i})).filter(same),idx=matches.length?matches.at(-1).i:-1,old=idx>=0?{...disponibilita[idx]}:null;if(idx>=0){disponibilita[idx].risposta=response;disponibilita[idx].membroId=currentUserId||disponibilita[idx].membroId;disponibilita[idx].membro=currentUser}else disponibilita.push({membroId:currentUserId,membro:currentUser,incontro:id,risposta:response});updateMeetingState(id);setAvailabilitySaving(id,response,true);apiRequest('salva',{incontro:id,risposta:response},resp=>{setAvailabilitySaving(id,response,false);if(!apiSucceeded(resp)){const now=disponibilita.map((d,i)=>({d,i})).filter(same).at(-1)?.i;if(old&&now!==undefined)disponibilita[now]=old;else if(!old&&now!==undefined)disponibilita.splice(now,1);updateMeetingState(id);apiError(resp?.message||'Disponibilità non salvata.');return}stampUpdate('inc-updated');showToast(response==='si'?'Disponibilità salvata: ci sei':'Disponibilità salvata: non puoi')})}
 function setAvailabilitySaving(id,response,saving){for(const type of ['yes','no']){const b=$(type==='yes'?'btn-yes-'+id:'btn-no-'+id);if(!b)continue;b.disabled=saving;const activeResponse=type==='yes'?'si':'no';b.innerHTML=saving&&response===activeResponse?'Salvataggio…':icon(type==='yes'?'check':'x')+(type==='yes'?'Ci sono':'Non posso')}}
 
-function openDialog(id,focusSelector){dialogReturnFocus.set(id,document.activeElement);const bg=$(id);bg.classList.add('open');setTimeout(()=>bg.querySelector(focusSelector)?.focus(),20)}
-function closeDialog(id){const bg=$(id);bg.classList.remove('open');const prev=dialogReturnFocus.get(id);dialogReturnFocus.delete(id);if(prev&&document.contains(prev))prev.focus()}
+function syncPageScrollLock(){
+  const shouldLock=!!document.querySelector('.modal-bg.open,.confirm-bg.open');
+  if(shouldLock&&!pageScrollLocked){
+    pageScrollLocked=true;
+    lockedPageScrollY=window.scrollY||document.documentElement.scrollTop||0;
+    document.body.classList.add('dialog-scroll-locked');
+    document.body.style.top=`-${lockedPageScrollY}px`;
+  }else if(!shouldLock&&pageScrollLocked){
+    const y=lockedPageScrollY;
+    pageScrollLocked=false;
+    document.body.classList.remove('dialog-scroll-locked');
+    document.body.style.top='';
+    window.scrollTo(0,y);
+  }
+}
+function openDialog(id,focusSelector){
+  dialogReturnFocus.set(id,document.activeElement);
+  const bg=$(id);
+  bg.classList.add('open');
+  syncPageScrollLock();
+  setTimeout(()=>bg.querySelector(focusSelector)?.focus(),20);
+}
+function closeDialog(id){
+  const bg=$(id);
+  bg.classList.remove('open');
+  if(id==='modal-impostazioni')resetMembersSheetPosition();
+  syncPageScrollLock();
+  const prev=dialogReturnFocus.get(id);
+  dialogReturnFocus.delete(id);
+  if(prev&&document.contains(prev))prev.focus();
+}
 function openMeetingModal(inc=null,preselectedSegId=''){editingId=inc?.id||null;$('modal-title').textContent=inc?'Modifica incontro':'Nuovo incontro';$('modal-data').value=inc?isoDate(meetingDate(inc)):'';$('modal-orario').value=inc?.orario||'';$('modal-luogo').value=inc?.luogo||'';$('modal-segnalazione').value=inc?.segnalazioneId||preselectedSegId||'';$('modal-error').classList.remove('visible');$('modal-error').textContent='';openDialog('modal-bg','#modal-data')}
 function closeMeetingModal(){setMeetingSaving(false);closeDialog('modal-bg')}
 function setMeetingSaving(v){const b=$('btn-salva-incontro');b.disabled=v;b.textContent=v?'Salvataggio…':'Salva'}
@@ -448,17 +618,134 @@ function askDeleteMeeting(id){if(!isCoord)return;deletingId=id;openDialog('confi
 function confirmDeleteMeeting(){if(!isCoord||!deletingId)return;if(!navigator.onLine&&!DEMO_MODE){apiError('Sei offline.');return}const id=deletingId,old=[...incontri];incontri=incontri.filter(i=>String(i.id)!==String(id));delete openPanels[id];closeDeleteMeeting();renderIncontri();apiRequest('elimina_incontro',{id},resp=>{if(!apiSucceeded(resp)){incontri=old;renderIncontri();apiError(resp?.message||'Incontro non eliminato.');return}stampUpdate('inc-updated');showToast('Incontro eliminato')})}
 function closeDeleteMeeting(){deletingId=null;closeDialog('confirm-bg')}
 
+
+function resetMembersSheetPosition(){
+  const sheet=document.querySelector('#modal-impostazioni .members-modal');
+  const bg=$('modal-impostazioni');
+  if(sheet){
+    sheet.style.transition='';
+    sheet.style.transform='';
+  }
+  if(bg)bg.style.removeProperty('--sheet-drag');
+  memberSheetDrag={active:false,dragging:false,startY:0,lastY:0,lastT:0,delta:0,scrollEl:null};
+}
+function finishMembersSheetDrag(){
+  const sheet=document.querySelector('#modal-impostazioni .members-modal');
+  const bg=$('modal-impostazioni');
+  if(!sheet)return;
+
+  const delta=Math.max(0,memberSheetDrag.delta||0);
+  const recentDy=(memberSheetDrag.lastY||0)-(memberSheetDrag.prevY||memberSheetDrag.lastY||0);
+  const shouldClose=delta>120||(delta>72&&recentDy>8);
+
+  sheet.style.transition='transform .2s cubic-bezier(.22,.8,.3,1)';
+  if(shouldClose){
+    sheet.style.transform='translateY(105%)';
+    if(bg)bg.style.setProperty('--sheet-drag','1');
+    setTimeout(()=>closeMembers(),190);
+  }else{
+    sheet.style.transform='translateY(0)';
+    if(bg)bg.style.setProperty('--sheet-drag','0');
+    setTimeout(()=>resetMembersSheetPosition(),210);
+  }
+  memberSheetDrag.active=false;
+  memberSheetDrag.dragging=false;
+}
+function setupMembersSheetGesture(){
+  const sheet=document.querySelector('#modal-impostazioni .members-modal');
+  if(!sheet)return;
+
+  sheet.addEventListener('touchstart',e=>{
+    if(window.innerWidth>700||e.touches.length!==1)return;
+    if(e.target.closest('input,select,textarea,button,a'))return;
+
+    const scrollEl=e.target.closest('.members-editor');
+    if(scrollEl&&scrollEl.scrollTop>0)return;
+
+    const y=e.touches[0].clientY;
+    memberSheetDrag={
+      active:true,dragging:false,startY:y,lastY:y,prevY:y,lastT:performance.now(),delta:0,scrollEl:scrollEl||null
+    };
+    sheet.style.transition='none';
+  },{passive:true});
+
+  sheet.addEventListener('touchmove',e=>{
+    if(!memberSheetDrag.active||e.touches.length!==1)return;
+    if(memberSheetDrag.scrollEl&&memberSheetDrag.scrollEl.scrollTop>0)return;
+
+    const y=e.touches[0].clientY;
+    const delta=y-memberSheetDrag.startY;
+    memberSheetDrag.prevY=memberSheetDrag.lastY;
+    memberSheetDrag.lastY=y;
+    memberSheetDrag.lastT=performance.now();
+
+    if(delta<=0){
+      memberSheetDrag.delta=0;
+      if(memberSheetDrag.dragging)sheet.style.transform='translateY(0)';
+      const bg=$('modal-impostazioni');
+      if(bg)bg.style.setProperty('--sheet-drag','0');
+      return;
+    }
+
+    memberSheetDrag.dragging=true;
+    memberSheetDrag.delta=delta;
+    e.preventDefault();
+
+    const eased=Math.min(delta*.9,window.innerHeight*.62);
+    sheet.style.transform=`translateY(${eased}px)`;
+    const bg=$('modal-impostazioni');
+    if(bg)bg.style.setProperty('--sheet-drag',String(Math.min(1,eased/300)));
+  },{passive:false});
+
+  sheet.addEventListener('touchend',()=>{
+    if(!memberSheetDrag.active)return;
+    if(memberSheetDrag.dragging)finishMembersSheetDrag();
+    else resetMembersSheetPosition();
+  },{passive:true});
+
+  sheet.addEventListener('touchcancel',()=>{
+    if(memberSheetDrag.active)resetMembersSheetPosition();
+  },{passive:true});
+}
+
+function setMembersLoading(v){
+  membersLoading=v;
+  const root=$('lista-membri'),add=$('btn-add-member'),save=$('members-save');
+  if(v){
+    root.innerHTML=`<div class="members-loading" role="status"><div class="spinner" aria-hidden="true"></div><div><strong>Caricamento membri</strong><span>Sto aggiornando l’elenco…</span></div></div>`;
+    add.hidden=true;
+    save.disabled=true;
+    save.textContent='Caricamento…';
+  }else{
+    add.hidden=false;
+    save.disabled=false;
+    save.textContent='Salva modifiche';
+  }
+}
 function openMembers(){
   if(!isCoord)return;
+  membersDraft=[];
   $('members-error').classList.remove('visible');$('members-error').textContent='';
+  setMembersLoading(true);
+  openDialog('modal-impostazioni','#members-cancel');
+
   apiRequest('gestione_membri',{},rows=>{
-    if(!Array.isArray(rows)){apiError(rows?.message||'Impossibile caricare i membri.');return}
+    setMembersLoading(false);
+    if(!Array.isArray(rows)){
+      $('lista-membri').innerHTML=`<div class="members-load-failed">${icon('warning','icon icon-lg')}<strong>Impossibile caricare i membri</strong><span>Chiudi il pannello e riprova tra poco.</span></div>`;
+      apiError(rows?.message||'Impossibile caricare i membri.');
+      return;
+    }
     membersDraft=rows.map(x=>({...x}));
     renderMembers();
-    openDialog('modal-impostazioni','.member-editor-name');
+    setTimeout(()=>$('lista-membri').querySelector('.member-editor-name')?.focus(),30);
   });
 }
-function closeMembers(){membersDraft=[];closeDialog('modal-impostazioni')}
+function closeMembers(){
+  membersDraft=[];
+  membersLoading=false;
+  closeDialog('modal-impostazioni');
+}
 function renderMembers(){
   const root=$('lista-membri');
   root.innerHTML=membersDraft.map((m,i)=>{
@@ -479,6 +766,7 @@ function renderMembers(){
   }).join('');
 }
 function addMember(){
+  if(membersLoading)return;
   membersDraft.push({id:'',nome:'',email:'',ruolo:'membro',attivo:true});
   renderMembers();
   const inputs=$('lista-membri').querySelectorAll('.member-editor-name');
@@ -498,7 +786,7 @@ function confirmRemoveMember(){
 }
 function cancelRemoveMember(){deletingMembroIdx=null;closeDialog('confirm-membro-bg')}
 function saveMembers(){
-  if(!isCoord)return;
+  if(!isCoord||membersLoading)return;
   const error=$('members-error');
   error.classList.remove('visible');error.textContent='';
   for(const m of membersDraft){
@@ -535,7 +823,7 @@ function reactivateMember(i){
   const m=membersDraft[i];if(!m)return;m.attivo=true;renderMembers();
 }
 
-function focusTrap(e){if(e.key!=='Tab')return;const bg=[...document.querySelectorAll('.modal-bg.open,.confirm-bg.open')].at(-1);if(!bg)return;const items=[...bg.querySelectorAll('button:not([disabled]),input:not([disabled]),select:not([disabled]),a[href],[tabindex]:not([tabindex="-1"])')].filter(x=>x.offsetParent!==null);if(!items.length)return;const first=items[0],last=items.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus()}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus()}}
+function focusTrap(e){if(e.key!=='Tab')return;const bg=[...document.querySelectorAll('.modal-bg.open,.confirm-bg.open')].at(-1);if(!bg)return;const items=[...bg.querySelectorAll('button:not([disabled]),input:not([disabled]),textarea:not([disabled]),select:not([disabled]),a[href],[tabindex]:not([tabindex="-1"])')].filter(x=>x.offsetParent!==null);if(!items.length)return;const first=items[0],last=items.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus()}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus()}}
 
 window.addEventListener('DOMContentLoaded',()=>{
   setNetworkState();
@@ -553,9 +841,12 @@ window.addEventListener('DOMContentLoaded',()=>{
   $('login-code').addEventListener('keydown',e=>{if(e.key==='Enter')verifyLoginCode()});
 
   document.querySelector('.nav-wrap').addEventListener('click',e=>{const b=e.target.closest('button[data-page]');if(b)showPage(b.dataset.page)});
+  setupPageSwipe();
   $('seg-filters').addEventListener('click',e=>{const b=e.target.closest('.stat');if(b)setSegFilter(b.dataset.filter)});
   $('table-container').addEventListener('change',e=>{const s=e.target.closest('.stato-sel');if(s)updateStatus(s)});
   $('table-container').addEventListener('click',e=>{
+    const linked=e.target.closest('[data-action="open-linked-meeting"]');
+    if(linked){const meetingId=linked.dataset.meetingId;if(meetingId)openLinkedMeeting(meetingId);return}
     const del=e.target.closest('[data-action="delete-seg"]');
     if(del&&isCoord){
       const segId=del.dataset.segId;
@@ -573,11 +864,21 @@ window.addEventListener('DOMContentLoaded',()=>{
     const b=e.target.closest('button[data-action]');if(!b)return;
     if(b.dataset.action==='toggle-past'){showPastMeetings=!showPastMeetings;renderIncontri();return}
     const card=b.closest('.inc-card'),id=card?.dataset.meetingId;if(!id)return;
+    if(b.dataset.action==='toggle-meeting-card'){toggleMeetingCard(id);return}
     if(b.dataset.action==='toggle-availability')togglePanel(id);
     else if(b.dataset.action==='availability')saveAvailability(id,b.dataset.response);
     else if(b.dataset.action==='edit-meeting')openMeetingModal(incontri.find(i=>String(i.id)===String(id)));
     else if(b.dataset.action==='delete-meeting')askDeleteMeeting(id);
   });
+
+  $('avvisi-list').addEventListener('click',e=>{const edit=e.target.closest('[data-action="edit-notice"]'),del=e.target.closest('[data-action="delete-notice"]');if(edit){const card=edit.closest('[data-notice-id]'),a=avvisi.find(x=>String(x.id)===String(card?.dataset.noticeId||''));if(a&&(a.puoiGestire||String(a.autoreId||'')===String(currentUserId||'')))openNoticeModal(a);return}if(del){const card=del.closest('[data-notice-id]');if(card)askDeleteNotice(card.dataset.noticeId)}});
+  $('notice-text').addEventListener('input',updateNoticeCharCount);
+  $('notice-cancel').addEventListener('click',closeNoticeModal);
+  $('notice-save').addEventListener('click',saveNotice);
+  $('notice-delete-cancel').addEventListener('click',closeDeleteNotice);
+  $('notice-delete-confirm').addEventListener('click',confirmDeleteNotice);
+  $('logout-cancel').addEventListener('click',closeLogoutConfirm);
+  $('logout-confirm').addEventListener('click',confirmLogout);
 
   $('lista-membri').addEventListener('click',e=>{
     const remove=e.target.closest('[data-member-remove]'),reactivate=e.target.closest('[data-member-reactivate]');
@@ -589,13 +890,14 @@ window.addEventListener('DOMContentLoaded',()=>{
 
   $('refresh-segnalazioni').addEventListener('click',loadSegnalazioni);
   $('refresh-incontri').addEventListener('click',loadIncontri);
+  $('refresh-avvisi').addEventListener('click',()=>loadAvvisi());
+  $('btn-nuovo-avviso').addEventListener('click',()=>openNoticeModal());
   $('btn-proponi').addEventListener('click',()=>openMeetingModal());
   $('btn-impostazioni').addEventListener('click',openMembers);
-  $('btn-logout').addEventListener('click',logout);
+  $('btn-logout').addEventListener('click',askLogout);
 
-  $('mobile-menu-trigger').addEventListener('click',e=>{e.stopPropagation();toggleMobileMenu()});
   $('mobile-btn-impostazioni').addEventListener('click',()=>{closeMobileMenu();openMembers()});
-  $('mobile-btn-logout').addEventListener('click',logout);
+  $('mobile-btn-logout').addEventListener('click',askLogout);
 
   $('modal-cancel').addEventListener('click',closeMeetingModal);
   $('btn-salva-incontro').addEventListener('click',saveMeeting);
@@ -609,23 +911,32 @@ window.addEventListener('DOMContentLoaded',()=>{
   $('seg-delete-confirm').addEventListener('click',confirmDeleteSeg);
   $('member-delete-cancel').addEventListener('click',cancelRemoveMember);
   $('member-delete-confirm').addEventListener('click',confirmRemoveMember);
+  setupMembersSheetGesture();
 
   document.addEventListener('click',e=>{if(!e.target.closest('.mobile-account'))closeMobileMenu()});
-  window.addEventListener('online',setNetworkState);
+  window.addEventListener('online',()=>{setNetworkState();refreshNoticeBadge()});
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')refreshNoticeBadge()});
+  let __grLastMobile=window.innerWidth<=700;
+  window.addEventListener('resize',()=>{const mobile=window.innerWidth<=700;if(mobile===__grLastMobile)return;__grLastMobile=mobile;if(currentUser){renderSegnalazioni();renderIncontri();}updateNavIndicator(currentPage,false);});
   window.addEventListener('offline',setNetworkState);
   document.addEventListener('keydown',e=>{
     if(e.key==='Escape'){
       closeMobileMenu();
+      if($('confirm-logout-bg').classList.contains('open'))return closeLogoutConfirm();
+      if($('confirm-avviso-bg').classList.contains('open'))return closeDeleteNotice();
       if($('confirm-membro-bg').classList.contains('open'))return cancelRemoveMember();
       if($('confirm-seg-bg').classList.contains('open'))return closeDeleteSeg();
       if($('confirm-bg').classList.contains('open'))return closeDeleteMeeting();
+      if($('modal-avviso-bg').classList.contains('open'))return closeNoticeModal();
       if($('modal-impostazioni').classList.contains('open'))return closeMembers();
       if($('modal-bg').classList.contains('open'))return closeMeetingModal();
     }
     focusTrap(e);
   });
-  for(const id of ['modal-bg','modal-impostazioni'])$(id).addEventListener('click',e=>{if(e.target===e.currentTarget)(id==='modal-bg'?closeMeetingModal:closeMembers)()});
+  for(const id of ['modal-bg','modal-impostazioni','modal-avviso-bg'])$(id).addEventListener('click',e=>{if(e.target!==e.currentTarget)return;if(id==='modal-bg')closeMeetingModal();else if(id==='modal-impostazioni')closeMembers();else closeNoticeModal()});
   $('confirm-seg-bg').addEventListener('click',e=>{if(e.target===e.currentTarget)closeDeleteSeg()});
+  $('confirm-avviso-bg').addEventListener('click',e=>{if(e.target===e.currentTarget)closeDeleteNotice()});
+  $('confirm-logout-bg').addEventListener('click',e=>{if(e.target===e.currentTarget)closeLogoutConfirm()});
 
   if(DEMO_MODE){
     currentUser=DEFAULT_MEMBERS[0];currentUserId='demo';currentUserEmail='demo@example.it';isCoord=true;authToken='demo';members=[...DEFAULT_MEMBERS];showMain();
