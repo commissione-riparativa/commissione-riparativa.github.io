@@ -148,3 +148,11 @@ Solo il coordinatore vede il comando `Elimina`.
 - per i membri normali Apri risposta è compatto e centrato;
 - icona Gestione membri sostituita con icona persone e nascosta rigidamente ai non coordinatori;
 - transizioni di modali e dettagli incontro rese più morbide.
+
+
+## V29 — Bacheca
+- nuova sezione Bacheca, leggibile e scrivibile da tutti i membri autenticati;
+- autore o coordinatore possono modificare/eliminare un avviso;
+- badge discreto per i nuovi avvisi;
+- conferma prima di uscire dall’account;
+- giorno della settimana e “Mostra dettagli” resi più leggeri ed eleganti negli incontri.

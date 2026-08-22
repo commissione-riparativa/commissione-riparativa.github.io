@@ -1,14 +1,14 @@
 <!DOCTYPE html>
 <html lang="it">
 <head>
-  <meta name="app-ui-version" content="25">
+  <meta name="app-ui-version" content="29">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="referrer" content="no-referrer">
 <meta name="theme-color" content="#f6f7f4">
 <title>Giustizia Riparativa</title>
-<link rel="stylesheet" href="style.css?v=28">
-<link rel="manifest" href="manifest.webmanifest?v=28">
+<link rel="stylesheet" href="style.css?v=29">
+<link rel="manifest" href="manifest.webmanifest?v=29">
 <link rel="icon" href="icons/favicon-bilancia-v2.png" type="image/png">
 <link rel="apple-touch-icon" href="icons/apple-touch-bilancia-v2.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -40,6 +40,7 @@
     <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13.5 8.5 15a4 4 0 1 1-5.7-5.7L6 6.1a4 4 0 0 1 5.7 0M14 10.5 15.5 9a4 4 0 1 1 5.7 5.7L18 17.9a4 4 0 0 1-5.7 0"/></symbol>
     <symbol id="i-external" viewBox="0 0 24 24"><path d="M14 5h5v5M19 5l-8 8"/><path d="M17 13v6H5V7h6"/></symbol>
     <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.2" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.2" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-megaphone" viewBox="0 0 24 24"><path d="M4 13.5V10.5a2 2 0 0 1 2-2h3l8-3.5v14L9 15.5H6a2 2 0 0 1-2-2Z"/><path d="M9 15.5 10.5 20H7.5L6 15.5M19 8.5a5.5 5.5 0 0 1 0 7"/></symbol>
     <symbol id="i-restorative" viewBox="0 0 24 24"><circle cx="6.5" cy="15.5" r="2.25"/><circle cx="17.5" cy="8.5" r="2.25"/><path d="M5 10.5A7.5 7.5 0 0 1 13.6 4.8M19 13.5a7.5 7.5 0 0 1-8.6 5.7M8.4 14.1l7.2-4.2"/></symbol>
   </defs>
 </svg>
@@ -104,6 +105,7 @@
       <nav class="nav-wrap" aria-label="Sezioni principali">
         <button class="active" id="nav-segnalazioni" type="button" data-page="segnalazioni" aria-current="page"><svg class="icon" aria-hidden="true"><use href="#i-report"></use></svg>Segnalazioni</button>
         <button id="nav-incontri" type="button" data-page="incontri"><svg class="icon" aria-hidden="true"><use href="#i-calendar"></use></svg>Incontri</button>
+        <button id="nav-bacheca" type="button" data-page="bacheca"><svg class="icon" aria-hidden="true"><use href="#i-megaphone"></use></svg><span>Bacheca</span><span class="nav-badge" id="avvisi-unread" hidden>0</span></button>
       </nav>
     </div>
 
@@ -123,6 +125,12 @@
       <div id="incontri-list" aria-live="polite"></div>
       <div class="refresh-row"><span class="updated-at" id="inc-updated">Non ancora aggiornato</span><button class="btn-small" id="refresh-incontri" type="button"><svg class="icon" aria-hidden="true"><use href="#i-refresh"></use></svg>Aggiorna</button></div>
     </section>
+
+    <section id="page-bacheca" class="page" aria-labelledby="nav-bacheca">
+      <div class="divider"><div><h2 class="section-label">Bacheca</h2><p class="section-subtle">Avvisi della commissione, visibili a tutti i membri.</p></div><button class="btn-primary" id="btn-nuovo-avviso" type="button"><svg class="icon" aria-hidden="true"><use href="#i-plus"></use></svg>Nuovo avviso</button></div>
+      <div id="avvisi-list" class="notice-list" aria-live="polite"></div>
+      <div class="refresh-row"><span class="updated-at" id="avvisi-updated">Non ancora aggiornato</span><button class="btn-small" id="refresh-avvisi" type="button"><svg class="icon" aria-hidden="true"><use href="#i-refresh"></use></svg>Aggiorna</button></div>
+    </section>
   </main>
 </div>
 
@@ -136,6 +144,17 @@
     <p class="hint">Puoi collegare l’incontro a una segnalazione già ricevuta.</p>
     <p class="form-error" id="modal-error" role="alert"></p>
     <div class="modal-btns"><button class="btn-small" id="modal-cancel" type="button">Annulla</button><button class="btn-primary" id="btn-salva-incontro" type="button">Salva</button></div>
+  </div>
+</div>
+
+<div class="modal-bg" id="modal-avviso-bg" role="presentation">
+  <div class="modal notice-modal" role="dialog" aria-modal="true" aria-labelledby="notice-modal-title">
+    <h3 id="notice-modal-title">Nuovo avviso</h3>
+    <label for="notice-title">Titolo</label><input type="text" id="notice-title" maxlength="100" autocomplete="off" placeholder="es. Cambio aula per l’incontro">
+    <label for="notice-text">Avviso</label><textarea id="notice-text" maxlength="600" rows="6" placeholder="Scrivi una comunicazione breve e chiara per la commissione."></textarea>
+    <div class="notice-char-count"><span id="notice-char-count">0</span>/600</div>
+    <p class="form-error" id="notice-error" role="alert"></p>
+    <div class="modal-btns"><button class="btn-small" id="notice-cancel" type="button">Annulla</button><button class="btn-primary" id="notice-save" type="button">Pubblica</button></div>
   </div>
 </div>
 
@@ -177,6 +196,23 @@
 </div>
 
 
+
+<div class="confirm-bg" id="confirm-avviso-bg" role="presentation">
+  <div class="confirm-box" role="alertdialog" aria-modal="true" aria-labelledby="confirm-avviso-title" aria-describedby="confirm-avviso-text">
+    <h4 id="confirm-avviso-title">Elimina avviso</h4>
+    <p id="confirm-avviso-text">L’avviso non sarà più visibile nella bacheca. Vuoi continuare?</p>
+    <div class="confirm-btns"><button class="btn-small" id="notice-delete-cancel" type="button">Annulla</button><button class="btn-danger" id="notice-delete-confirm" type="button"><svg class="icon" aria-hidden="true"><use href="#i-trash"></use></svg>Elimina</button></div>
+  </div>
+</div>
+
+<div class="confirm-bg" id="confirm-logout-bg" role="presentation">
+  <div class="confirm-box" role="alertdialog" aria-modal="true" aria-labelledby="confirm-logout-title" aria-describedby="confirm-logout-text">
+    <h4 id="confirm-logout-title">Uscire dall’account?</h4>
+    <p id="confirm-logout-text">La sessione su questo dispositivo verrà chiusa e per rientrare dovrai accedere di nuovo.</p>
+    <div class="confirm-btns"><button class="btn-small" id="logout-cancel" type="button">Annulla</button><button class="btn-danger logout-confirm-btn" id="logout-confirm" type="button"><svg class="icon" aria-hidden="true"><use href="#i-logout"></use></svg>Esci</button></div>
+  </div>
+</div>
+
 <div id="toast" class="toast" role="status" aria-live="polite" aria-atomic="true"></div>
-<script src="app.js?v=28"></script></body>
+<script src="app.js?v=29"></script></body>
 </html>

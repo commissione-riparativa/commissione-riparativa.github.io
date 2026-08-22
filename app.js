@@ -2,7 +2,7 @@
 function registerServiceWorker(){
   if(!('serviceWorker' in navigator))return;
   window.addEventListener('load',()=>{
-    navigator.serviceWorker.register('./sw.js?v=28').catch(err=>{
+    navigator.serviceWorker.register('./sw.js?v=29').catch(err=>{
       console.warn('Service worker non registrato:',err);
     });
   },{once:true});
@@ -19,9 +19,9 @@ const LOADER='<div class="loading-state"><div class="spinner" aria-hidden="true"
 const DEMO_MODE=new URLSearchParams(location.search).get('demo')==='1';
 
 let members=DEMO_MODE?[...DEFAULT_MEMBERS]:[],membersDraft=[],currentUser=null,currentUserId=null,currentUserEmail='',isCoord=false,authToken='',rememberDevice=true,authFlowBusy=false;
-let segnalazioni=[],incontri=[],disponibilita=[];
-let editingId=null,deletingId=null,deletingSegId=null,deletingMembroIdx=null,currentSegFilter='all',showPastMeetings=false,openPanels={},openMeetingCardId='',pendingLoginEmail='';
-let cbN=0,loadingSeg=false,loadingInc=false,incontriLoadedOnce=false;
+let segnalazioni=[],incontri=[],disponibilita=[],avvisi=[];
+let editingId=null,deletingId=null,deletingSegId=null,deletingMembroIdx=null,editingAvvisoId=null,deletingAvvisoId=null,currentSegFilter='all',showPastMeetings=false,openPanels={},openMeetingCardId='',pendingLoginEmail='';
+let cbN=0,loadingSeg=false,loadingInc=false,loadingAvvisi=false,incontriLoadedOnce=false,avvisiLoadedOnce=false;
 const dialogReturnFocus=new Map();
 let pageScrollLocked=false,lockedPageScrollY=0;
 let membersLoading=false;
@@ -36,6 +36,11 @@ let DEMO_INCONTRI=[
  {id:'demo-2',titolo:'martedì 25 Agosto 2026',dataIso:'2026-08-25',orario:'14:15',luogo:'Biblioteca',segnalazione:'Segnalazione del 14 agosto 2026 · Componente Adulti · adulto@example.it',segnalazioneId:'seg_demo_2'}
 ];
 let DEMO_DISP=[{membro:'Filippo Colluto',incontro:'demo-1',risposta:'si'},{membro:'Anna Ferrari',incontro:'demo-1',risposta:'si'},{membro:'Marco Bianchi',incontro:'demo-1',risposta:'no'}];
+let DEMO_AVVISI=[
+ {id:'av_demo_1',titolo:'Riunione della commissione',testo:'Ricordiamo di portare le disponibilità aggiornate per la prossima settimana.',autoreId:'demo',autore:'Filippo Colluto',creato:'2026-08-22T08:30:00.000Z',aggiornato:'2026-08-22T08:30:00.000Z',puoiGestire:true},
+ {id:'av_demo_2',titolo:'Cambio aula',testo:'L’incontro di venerdì si terrà in Biblioteca invece che in Aula riunioni.',autoreId:'mem_demo_2',autore:'Anna Ferrari',creato:'2026-08-21T13:10:00.000Z',aggiornato:'2026-08-21T13:10:00.000Z',puoiGestire:true}
+];
+
 
 function $(id){return document.getElementById(id)}
 function loadMembers(){return [...members]}
@@ -88,6 +93,10 @@ function demoRequest(action,params,cb){let resp={ok:true,demo:true};try{
   else if(action==='nuovo_incontro'){DEMO_INCONTRI.push({id:'demo-'+Date.now(),dataIso:params.data,titolo:meetingTitle(params.data),orario:params.orario,luogo:params.luogo||'',segnalazioneId:params.segnalazione_id||'',segnalazione:summaryForSeg(params.segnalazione_id)})}
   else if(action==='modifica_incontro'){const r=DEMO_INCONTRI.find(x=>x.id===params.id);if(r)Object.assign(r,{dataIso:params.data,titolo:meetingTitle(params.data),orario:params.orario,luogo:params.luogo||'',segnalazioneId:params.segnalazione_id||'',segnalazione:summaryForSeg(params.segnalazione_id)})}
   else if(action==='elimina_incontro'){DEMO_INCONTRI=DEMO_INCONTRI.filter(x=>x.id!==params.id)}
+  else if(action==='avvisi')resp=DEMO_AVVISI.map(x=>({...x}));
+  else if(action==='nuovo_avviso'){const now=new Date().toISOString(),id='av_demo_'+Date.now();DEMO_AVVISI.unshift({id,titolo:params.titolo||'',testo:params.testo||'',autoreId:currentUserId||'demo',autore:currentUser||'Membro',creato:now,aggiornato:now,puoiGestire:true});resp={ok:true,id}}
+  else if(action==='modifica_avviso'){const a=DEMO_AVVISI.find(x=>x.id===params.id);if(!a)resp={ok:false,message:'Avviso non trovato.'};else{a.titolo=params.titolo||a.titolo;a.testo=params.testo||a.testo;a.aggiornato=new Date().toISOString();resp={ok:true}}}
+  else if(action==='elimina_avviso'){DEMO_AVVISI=DEMO_AVVISI.filter(x=>x.id!==params.id);resp={ok:true}}
 }catch{resp={ok:false,message:'Errore modalità demo.'}}setTimeout(()=>cb(resp),70)}
 function summaryForSeg(id){const r=DEMO_SEGNALAZIONI.find(x=>x.ID===id);return r?`Segnalazione del ${dateLong(r.Data)} · ${r.Componente} · ${r.Recapito}`:''}
 
@@ -363,7 +372,7 @@ function loadCommissionMembers(done=()=>{}){
 }
 function handleAuthFailure(resp){
   const message=resp?.message||'La sessione non è più valida. Accedi di nuovo.';
-  authToken='';currentUser=null;currentUserId=null;currentUserEmail='';isCoord=false;members=[];
+  authToken='';currentUser=null;currentUserId=null;currentUserEmail='';isCoord=false;members=[];avvisi=[];avvisiLoadedOnce=false;
   clearStoredSessionToken();
   closeMobileMenu();
   showLoginEmailStep(message);
@@ -373,7 +382,7 @@ function selectLogin(){return}
 function login(){requestCode()}
 function logout(){
   const token=authToken;
-  authToken='';currentUser=null;currentUserId=null;currentUserEmail='';isCoord=false;members=[];openPanels={};
+  authToken='';currentUser=null;currentUserId=null;currentUserEmail='';isCoord=false;members=[];avvisi=[];avvisiLoadedOnce=false;openPanels={};
   clearStoredSessionToken();
   $('main-screen').style.display='none';
   closeMobileMenu();
@@ -383,6 +392,9 @@ function logout(){
     apiRequest('logout',{},()=>{authToken=''});
   }
 }
+function askLogout(){openDialog('confirm-logout-bg','#logout-confirm')}
+function closeLogoutConfirm(){closeDialog('confirm-logout-bg')}
+function confirmLogout(){closeLogoutConfirm();logout()}
 function showMain(){
   authFlowBusy=false;
   $('login-screen').classList.remove('visible');
@@ -397,8 +409,9 @@ function showMain(){
   $('demo-note').classList.toggle('visible',DEMO_MODE);
   loadSegnalazioni();
   loadIncontri();
+  loadAvvisi(true);
 }
-function showPage(id){openMeetingCardId='';openPanels={};if(currentUser&&$('incontri-list'))renderIncontri();document.querySelectorAll('.page').forEach(p=>p.classList.toggle('active',p.id==='page-'+id));document.querySelectorAll('.nav-wrap button').forEach(b=>{const active=b.dataset.page===id;b.classList.toggle('active',active);if(active)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current')});closeMobileMenu()}
+function showPage(id){openMeetingCardId='';openPanels={};if(currentUser&&$('incontri-list'))renderIncontri();document.querySelectorAll('.page').forEach(p=>p.classList.toggle('active',p.id==='page-'+id));document.querySelectorAll('.nav-wrap button').forEach(b=>{const active=b.dataset.page===id;b.classList.toggle('active',active);if(active)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current')});if(id==='bacheca'){if(!avvisiLoadedOnce)loadAvvisi();else renderAvvisi();setTimeout(markAvvisiSeen,250)}closeMobileMenu()}
 function toggleMobileMenu(){return}
 function closeMobileMenu(){return}
 function setNetworkState(){const offline=!navigator.onLine;$('network-banner').classList.toggle('visible',offline)}
@@ -442,6 +455,25 @@ function confirmDeleteSeg(){
     showToast('Segnalazione eliminata');
   });
 }
+
+
+function noticeSeenKey(){return 'gr_avvisi_visti_'+String(currentUserId||currentUserEmail||'utente').replace(/[^a-z0-9_-]/gi,'_')}
+function getNoticeLastSeen(){const raw=safeStorageGet(localStorage,noticeSeenKey());const t=Date.parse(raw||'');return Number.isFinite(t)?t:0}
+function noticeTime(value){const d=new Date(value||'');if(Number.isNaN(d.getTime()))return '';const today=new Date();const same=today.getFullYear()===d.getFullYear()&&today.getMonth()===d.getMonth()&&today.getDate()===d.getDate();if(same)return 'Oggi · '+new Intl.DateTimeFormat('it-IT',{hour:'2-digit',minute:'2-digit'}).format(d);return new Intl.DateTimeFormat('it-IT',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}).format(d).replace(',', ' ·')}
+function noticeIsNew(a){const t=Date.parse(a.creato||'');return Number.isFinite(t)&&t>getNoticeLastSeen()&&String(a.autoreId||'')!==String(currentUserId||'')}
+function updateAvvisiUnreadBadge(){const badge=$('avvisi-unread');if(!badge)return;const n=avvisi.filter(noticeIsNew).length;badge.textContent=n>9?'9+':String(n);badge.hidden=n===0}
+function markAvvisiSeen(){if(!currentUserId)return;safeStorageSet(localStorage,noticeSeenKey(),new Date().toISOString());const badge=$('avvisi-unread');if(badge)badge.hidden=true}
+function loadAvvisi(silent=false){if(loadingAvvisi)return;loadingAvvisi=true;const refresh=$('refresh-avvisi');if(refresh)refresh.disabled=true;if(!silent&&$('avvisi-list')){$('avvisi-list').innerHTML=LOADER;$('avvisi-list').setAttribute('aria-busy','true')}apiRequest('avvisi',{},rows=>{loadingAvvisi=false;avvisiLoadedOnce=true;if(refresh)refresh.disabled=false;if($('avvisi-list'))$('avvisi-list').removeAttribute('aria-busy');if(!Array.isArray(rows)){if(!silent&&$('avvisi-list'))$('avvisi-list').innerHTML=emptyState('warning','Impossibile caricare la bacheca','Controlla la connessione e premi Aggiorna per riprovare.');if(!silent)apiError('Impossibile caricare la bacheca.');return}avvisi=rows;stampUpdate('avvisi-updated');renderAvvisi();updateAvvisiUnreadBadge()})}
+function renderAvvisi(){const root=$('avvisi-list');if(!root)return;if(!avvisi.length){root.innerHTML=emptyState('megaphone','Nessun avviso','La bacheca è vuota. Puoi pubblicare il primo avviso.');return}const sorted=[...avvisi].sort((a,b)=>Date.parse(b.creato||0)-Date.parse(a.creato||0));root.innerHTML=sorted.map(a=>{const fresh=noticeIsNew(a),can=!!a.puoiGestire;return `<article class="notice-card${fresh?' new':''}" data-notice-id="${escapeAttr(a.id)}"><div class="notice-card-head"><div class="notice-title-wrap"><div class="notice-title-line"><h3>${escapeHtml(a.titolo||'Avviso')}</h3>${fresh?'<span class="notice-new-badge">Nuovo</span>':''}</div><div class="notice-meta"><span>${escapeHtml(a.autore||'Membro')}</span><span aria-hidden="true">·</span><time>${escapeHtml(noticeTime(a.creato))}</time>${a.aggiornato&&a.aggiornato!==a.creato?'<span>· modificato</span>':''}</div></div>${can?`<div class="notice-actions"><button class="notice-icon-btn" type="button" data-action="edit-notice" aria-label="Modifica avviso" title="Modifica">${icon('edit','icon icon-sm')}</button><button class="notice-icon-btn danger" type="button" data-action="delete-notice" aria-label="Elimina avviso" title="Elimina">${icon('trash','icon icon-sm')}</button></div>`:''}</div><div class="notice-text">${escapeHtml(a.testo||'')}</div></article>`}).join('')}
+function openNoticeModal(a=null){editingAvvisoId=a?.id||null;$('notice-modal-title').textContent=a?'Modifica avviso':'Nuovo avviso';$('notice-title').value=a?.titolo||'';$('notice-text').value=a?.testo||'';$('notice-save').textContent=a?'Salva modifiche':'Pubblica';$('notice-error').textContent='';$('notice-error').classList.remove('visible');updateNoticeCharCount();openDialog('modal-avviso-bg','#notice-title')}
+function closeNoticeModal(){editingAvvisoId=null;setNoticeSaving(false);closeDialog('modal-avviso-bg')}
+function updateNoticeCharCount(){const el=$('notice-char-count');if(el)el.textContent=String(($('notice-text')?.value||'').length)}
+function setNoticeSaving(v){const b=$('notice-save');if(!b)return;b.disabled=v;b.textContent=v?'Salvataggio…':editingAvvisoId?'Salva modifiche':'Pubblica'}
+function showNoticeError(msg){const el=$('notice-error');if(!el)return;el.textContent=msg||'';el.classList.toggle('visible',!!msg)}
+function saveNotice(){if(!navigator.onLine&&!DEMO_MODE){showNoticeError('Sei offline. Riprova quando la connessione è disponibile.');return}const titolo=$('notice-title').value.trim(),testo=$('notice-text').value.trim();if(!titolo){showNoticeError('Inserisci un titolo.');$('notice-title').focus();return}if(!testo){showNoticeError('Scrivi il testo dell’avviso.');$('notice-text').focus();return}showNoticeError('');setNoticeSaving(true);const editing=!!editingAvvisoId,params={titolo,testo};if(editing)params.id=editingAvvisoId;apiRequest(editing?'modifica_avviso':'nuovo_avviso',params,resp=>{setNoticeSaving(false);if(!apiSucceeded(resp)){showNoticeError(resp?.message||'Avviso non salvato. Riprova.');return}closeNoticeModal();showToast(editing?'Avviso aggiornato':'Avviso pubblicato');loadAvvisi(true)})}
+function askDeleteNotice(id){const a=avvisi.find(x=>String(x.id)===String(id));if(!a||!a.puoiGestire)return;deletingAvvisoId=id;$('confirm-avviso-text').textContent=`L’avviso “${a.titolo||'senza titolo'}” non sarà più visibile nella bacheca. Vuoi continuare?`;openDialog('confirm-avviso-bg','#notice-delete-confirm')}
+function closeDeleteNotice(){deletingAvvisoId=null;closeDialog('confirm-avviso-bg')}
+function confirmDeleteNotice(){if(!deletingAvvisoId)return;if(!navigator.onLine&&!DEMO_MODE){apiError('Sei offline.');return}const id=deletingAvvisoId,btn=$('notice-delete-confirm');if(btn){btn.disabled=true;btn.textContent='Eliminazione…'}apiRequest('elimina_avviso',{id},resp=>{if(btn){btn.disabled=false;btn.innerHTML=icon('trash')+'Elimina'}if(!apiSucceeded(resp)){closeDeleteNotice();apiError(resp?.message||'Avviso non eliminato.');return}avvisi=avvisi.filter(a=>String(a.id)!==String(id));closeDeleteNotice();renderAvvisi();updateAvvisiUnreadBadge();showToast('Avviso eliminato')})}
 
 function loadIncontri(){if(loadingInc)return;loadingInc=true;$('refresh-incontri').disabled=true;$('incontri-list').innerHTML=LOADER;$('incontri-list').setAttribute('aria-busy','true');apiRequest('incontri',{},data=>{if(!Array.isArray(data)){finishIncontriLoad();$('incontri-list').innerHTML=emptyState('warning','Impossibile caricare gli incontri','Controlla la connessione e premi Aggiorna per riprovare.');apiError('Impossibile caricare gli incontri.');return}incontri=data;apiRequest('disponibilita',{},disp=>{disponibilita=Array.isArray(disp)?disp:[];finishIncontriLoad();stampUpdate('inc-updated');renderIncontri();if(!Array.isArray(disp))apiError('Incontri caricati, ma non le disponibilità.')})})}
 function finishIncontriLoad(){loadingInc=false;incontriLoadedOnce=true;$('refresh-incontri').disabled=false;$('incontri-list').removeAttribute('aria-busy');if(segnalazioni.length)renderSegnalazioni()}
@@ -716,7 +748,7 @@ function reactivateMember(i){
   const m=membersDraft[i];if(!m)return;m.attivo=true;renderMembers();
 }
 
-function focusTrap(e){if(e.key!=='Tab')return;const bg=[...document.querySelectorAll('.modal-bg.open,.confirm-bg.open')].at(-1);if(!bg)return;const items=[...bg.querySelectorAll('button:not([disabled]),input:not([disabled]),select:not([disabled]),a[href],[tabindex]:not([tabindex="-1"])')].filter(x=>x.offsetParent!==null);if(!items.length)return;const first=items[0],last=items.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus()}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus()}}
+function focusTrap(e){if(e.key!=='Tab')return;const bg=[...document.querySelectorAll('.modal-bg.open,.confirm-bg.open')].at(-1);if(!bg)return;const items=[...bg.querySelectorAll('button:not([disabled]),input:not([disabled]),textarea:not([disabled]),select:not([disabled]),a[href],[tabindex]:not([tabindex="-1"])')].filter(x=>x.offsetParent!==null);if(!items.length)return;const first=items[0],last=items.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus()}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus()}}
 
 window.addEventListener('DOMContentLoaded',()=>{
   setNetworkState();
@@ -761,6 +793,15 @@ window.addEventListener('DOMContentLoaded',()=>{
     else if(b.dataset.action==='delete-meeting')askDeleteMeeting(id);
   });
 
+  $('avvisi-list').addEventListener('click',e=>{const edit=e.target.closest('[data-action="edit-notice"]'),del=e.target.closest('[data-action="delete-notice"]');if(edit){const card=edit.closest('[data-notice-id]'),a=avvisi.find(x=>String(x.id)===String(card?.dataset.noticeId||''));if(a&&a.puoiGestire)openNoticeModal(a);return}if(del){const card=del.closest('[data-notice-id]');if(card)askDeleteNotice(card.dataset.noticeId)}});
+  $('notice-text').addEventListener('input',updateNoticeCharCount);
+  $('notice-cancel').addEventListener('click',closeNoticeModal);
+  $('notice-save').addEventListener('click',saveNotice);
+  $('notice-delete-cancel').addEventListener('click',closeDeleteNotice);
+  $('notice-delete-confirm').addEventListener('click',confirmDeleteNotice);
+  $('logout-cancel').addEventListener('click',closeLogoutConfirm);
+  $('logout-confirm').addEventListener('click',confirmLogout);
+
   $('lista-membri').addEventListener('click',e=>{
     const remove=e.target.closest('[data-member-remove]'),reactivate=e.target.closest('[data-member-reactivate]');
     if(remove)askRemoveMember(Number(remove.dataset.memberRemove));
@@ -771,12 +812,14 @@ window.addEventListener('DOMContentLoaded',()=>{
 
   $('refresh-segnalazioni').addEventListener('click',loadSegnalazioni);
   $('refresh-incontri').addEventListener('click',loadIncontri);
+  $('refresh-avvisi').addEventListener('click',()=>loadAvvisi());
+  $('btn-nuovo-avviso').addEventListener('click',()=>openNoticeModal());
   $('btn-proponi').addEventListener('click',()=>openMeetingModal());
   $('btn-impostazioni').addEventListener('click',openMembers);
-  $('btn-logout').addEventListener('click',logout);
+  $('btn-logout').addEventListener('click',askLogout);
 
   $('mobile-btn-impostazioni').addEventListener('click',()=>{closeMobileMenu();openMembers()});
-  $('mobile-btn-logout').addEventListener('click',logout);
+  $('mobile-btn-logout').addEventListener('click',askLogout);
 
   $('modal-cancel').addEventListener('click',closeMeetingModal);
   $('btn-salva-incontro').addEventListener('click',saveMeeting);
@@ -800,16 +843,21 @@ window.addEventListener('DOMContentLoaded',()=>{
   document.addEventListener('keydown',e=>{
     if(e.key==='Escape'){
       closeMobileMenu();
+      if($('confirm-logout-bg').classList.contains('open'))return closeLogoutConfirm();
+      if($('confirm-avviso-bg').classList.contains('open'))return closeDeleteNotice();
       if($('confirm-membro-bg').classList.contains('open'))return cancelRemoveMember();
       if($('confirm-seg-bg').classList.contains('open'))return closeDeleteSeg();
       if($('confirm-bg').classList.contains('open'))return closeDeleteMeeting();
+      if($('modal-avviso-bg').classList.contains('open'))return closeNoticeModal();
       if($('modal-impostazioni').classList.contains('open'))return closeMembers();
       if($('modal-bg').classList.contains('open'))return closeMeetingModal();
     }
     focusTrap(e);
   });
-  for(const id of ['modal-bg','modal-impostazioni'])$(id).addEventListener('click',e=>{if(e.target===e.currentTarget)(id==='modal-bg'?closeMeetingModal:closeMembers)()});
+  for(const id of ['modal-bg','modal-impostazioni','modal-avviso-bg'])$(id).addEventListener('click',e=>{if(e.target!==e.currentTarget)return;if(id==='modal-bg')closeMeetingModal();else if(id==='modal-impostazioni')closeMembers();else closeNoticeModal()});
   $('confirm-seg-bg').addEventListener('click',e=>{if(e.target===e.currentTarget)closeDeleteSeg()});
+  $('confirm-avviso-bg').addEventListener('click',e=>{if(e.target===e.currentTarget)closeDeleteNotice()});
+  $('confirm-logout-bg').addEventListener('click',e=>{if(e.target===e.currentTarget)closeLogoutConfirm()});
 
   if(DEMO_MODE){
     currentUser=DEFAULT_MEMBERS[0];currentUserId='demo';currentUserEmail='demo@example.it';isCoord=true;authToken='demo';members=[...DEFAULT_MEMBERS];showMain();
