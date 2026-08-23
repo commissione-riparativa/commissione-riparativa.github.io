@@ -3,7 +3,7 @@ function registerServiceWorker(){
   if(!('serviceWorker' in navigator))return;
   window.addEventListener('load',()=>{
     const hadController=!!navigator.serviceWorker.controller;
-    navigator.serviceWorker.register('./sw.js?v=37').then(reg=>{
+    navigator.serviceWorker.register('./sw.js?v=38').then(reg=>{
       const watch=worker=>{if(!worker)return;worker.addEventListener('statechange',()=>{if(worker.state==='installed'&&navigator.serviceWorker.controller)showUpdateReady()})};
       if(reg.installing)watch(reg.installing);
       reg.addEventListener('updatefound',()=>watch(reg.installing));
@@ -379,7 +379,7 @@ function establishSession(user,done=()=>{}){
   currentUser=user.nome||'';
   currentUserId=user.id||'';
   currentUserEmail=user.email||'';
-  isCoord=user.ruolo==='coordinatore';
+  isCoord=String(user.ruolo||'').trim().toLowerCase()==='coordinatore';
   loadCommissionMembers(ok=>{
     if(!ok){
       showLoginEmailStep('Impossibile caricare i membri della commissione. Riprova.');
@@ -392,8 +392,10 @@ function establishSession(user,done=()=>{}){
 function loadCommissionMembers(done=()=>{}){
   apiRequest('membri',{},rows=>{
     if(!Array.isArray(rows)){done(false);return}
-    memberDirectory=rows.map(x=>({id:String(x.id||'').trim(),nome:String(x.nome||'').trim(),ruolo:String(x.ruolo||'membro')})).filter(x=>x.nome);
+    memberDirectory=rows.map(x=>({id:String(x.id||'').trim(),nome:String(x.nome||'').trim(),ruolo:String(x.ruolo||'membro').trim().toLowerCase()})).filter(x=>x.nome);
     if(currentUser&&!memberDirectory.some(m=>String(m.id)===String(currentUserId))){memberDirectory.unshift({id:currentUserId||'',nome:currentUser,ruolo:isCoord?'coordinatore':'membro'})}
+    const selfEntry=memberDirectory.find(m=>String(m.id||'')===String(currentUserId||'')) || memberDirectory.find(m=>normalizeName_(m.nome)===normalizeName_(currentUser));
+    if(selfEntry) isCoord=String(selfEntry.ruolo||'').trim().toLowerCase()==='coordinatore';
     members=memberDirectory.map(x=>x.nome);
     done(true);
   });
@@ -423,6 +425,16 @@ function logout(){
 function askLogout(){openDialog('confirm-logout-bg','#logout-confirm')}
 function closeLogoutConfirm(){closeDialog('confirm-logout-bg')}
 function confirmLogout(){closeLogoutConfirm();logout()}
+function syncCoordinatorControls(){
+  const ids=['coord-tag','btn-proponi','btn-impostazioni','mobile-btn-impostazioni'];
+  ids.forEach(id=>{
+    const el=$(id);
+    if(!el)return;
+    el.hidden=!isCoord;
+    if(isCoord) el.style.removeProperty('display');
+    else el.style.display='none';
+  });
+}
 function showMain(){
   authFlowBusy=false;
   currentPage='segnalazioni';
@@ -431,12 +443,7 @@ function showMain(){
   $('login-screen').classList.remove('visible');
   $('main-screen').style.display='block';
   $('welcome-msg').textContent='Ciao, '+currentUser;
-  $('coord-tag').hidden=!isCoord;
-  $('btn-proponi').hidden=!isCoord;
-  $('btn-impostazioni').hidden=!isCoord;
-  $('mobile-btn-impostazioni').hidden=!isCoord;
-  $('btn-impostazioni').style.display=isCoord?'':'none';
-  $('mobile-btn-impostazioni').style.display=isCoord?'':'none';
+  syncCoordinatorControls();
   $('demo-note').classList.toggle('visible',DEMO_MODE);
   $('update-now')?.addEventListener('click',()=>location.reload());
   loadSegnalazioni();
@@ -903,7 +910,7 @@ function saveMembers(){
     if(!apiSucceeded(resp)){error.textContent=resp?.message||'Membri non salvati. Riprova.';error.classList.add('visible');return}
     apiRequest('sessione',{},sessionResp=>{
       if(sessionResp&&sessionResp.ok===true&&sessionResp.utente){
-        currentUser=sessionResp.utente.nome||currentUser;currentUserEmail=sessionResp.utente.email||currentUserEmail;isCoord=sessionResp.utente.ruolo==='coordinatore';
+        currentUser=sessionResp.utente.nome||currentUser;currentUserEmail=sessionResp.utente.email||currentUserEmail;isCoord=String(sessionResp.utente.ruolo||'').trim().toLowerCase()==='coordinatore';syncCoordinatorControls();
       }
       loadCommissionMembers(ok=>{
         if(!ok){apiError('Membri salvati, ma impossibile aggiornare l’elenco.');return}

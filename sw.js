@@ -1,4 +1,4 @@
-const CACHE_NAME = 'giustizia-riparativa-pwa-v20-pager-v37';
+const CACHE_NAME = 'giustizia-riparativa-pwa-v21-pager-v38';
 
 const APP_SHELL = [
   './',

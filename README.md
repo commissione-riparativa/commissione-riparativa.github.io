@@ -234,3 +234,11 @@ Solo il coordinatore vede il comando `Elimina`.
 - il completamento dello swipe usa `scrollend` quando disponibile e un fallback più prudente sugli altri browser, evitando correzioni premature durante l'inerzia;
 - la sezione più vicina viene preparata durante lo scorrimento, così i controlli risultano pronti appena il gesto termina;
 - cache PWA e versione interfaccia aggiornate alla v37.
+
+
+## v38 — correzione Gestione membri
+- correzione della visibilità dei controlli del coordinatore;
+- normalizzazione del ruolo ricevuto dal backend;
+- doppio controllo sul membro corrente dopo il caricamento dell'elenco membri;
+- pulsante Gestione membri e icona mobile riallineati allo stato reale del ruolo;
+- cache PWA aggiornata a v38.
