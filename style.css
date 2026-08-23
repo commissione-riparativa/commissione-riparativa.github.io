@@ -1238,29 +1238,33 @@ textarea{resize:vertical}
 
 
 
-/* V36 — pager mobile nativo: le sezioni scorrono davvero una accanto all'altra */
+/* V37 — pager mobile rifinito: scorrimento nativo, leggero spazio tra le sezioni e meno lavoro durante lo swipe */
 .page-viewport{position:relative;min-width:0}
 @media(max-width:700px){
   .page-viewport{
     width:100%;
     overflow-x:hidden;
     overflow-y:hidden;
-    transition:height .28s cubic-bezier(.22,.78,.28,1);
+    transition:height .24s cubic-bezier(.22,.78,.28,1);
+    contain:layout paint;
   }
   .page-viewport.pager-ready{
     overflow-x:auto;
     scroll-snap-type:x mandatory;
-    scroll-behavior:smooth;
+    scroll-behavior:auto;
+    scroll-padding-inline:0;
     overscroll-behavior-x:contain;
     -webkit-overflow-scrolling:touch;
     scrollbar-width:none;
   }
   .page-viewport.pager-ready::-webkit-scrollbar{display:none}
-  .page-viewport.height-no-transition{transition:none!important}
+  .page-viewport.height-no-transition,
+  .page-viewport.pager-scrolling{transition:none!important}
   .page-viewport.pager-ready .page-track{
     display:flex;
     align-items:flex-start;
     width:100%;
+    gap:12px;
   }
   .page-viewport.pager-ready .page{
     display:block!important;
@@ -1268,7 +1272,7 @@ textarea{resize:vertical}
     width:100%;
     min-width:100%;
     scroll-snap-align:start;
-    scroll-snap-stop:always;
+    scroll-snap-stop:normal;
     opacity:1!important;
     animation:none!important;
     transform:none!important;

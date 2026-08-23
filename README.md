@@ -223,3 +223,14 @@ Solo il coordinatore vede il comando `Elimina`.
 - Lo scorrimento verticale della pagina resta naturale; i controlli interattivi non vengono usati come aree di swipe.
 - L'altezza del contenuto viene adattata alla sezione attiva per evitare grandi spazi vuoti tra pagine di lunghezza diversa.
 - Nessuna modifica al backend: resta Apps Script v3.5.
+
+
+## v37 — scorrimento mobile rifinito
+
+- aggiunto uno spazio di 12 px tra Segnalazioni, Incontri e Bacheca visibile durante lo scorrimento;
+- lo scorrimento usa gli offset reali delle pagine, quindi continua a funzionare correttamente anche con lo spazio tra le sezioni;
+- rimossa la forzatura `scroll-snap-stop: always`, che poteva far fermare una navigazione Segnalazioni → Bacheca sulla pagina intermedia;
+- alleggerito il lavoro eseguito durante lo swipe: altezze delle pagine memorizzate e aggiornamenti grafici raggruppati con `requestAnimationFrame`;
+- il completamento dello swipe usa `scrollend` quando disponibile e un fallback più prudente sugli altri browser, evitando correzioni premature durante l'inerzia;
+- la sezione più vicina viene preparata durante lo scorrimento, così i controlli risultano pronti appena il gesto termina;
+- cache PWA e versione interfaccia aggiornate alla v37.

@@ -3,7 +3,7 @@ function registerServiceWorker(){
   if(!('serviceWorker' in navigator))return;
   window.addEventListener('load',()=>{
     const hadController=!!navigator.serviceWorker.controller;
-    navigator.serviceWorker.register('./sw.js?v=36').then(reg=>{
+    navigator.serviceWorker.register('./sw.js?v=37').then(reg=>{
       const watch=worker=>{if(!worker)return;worker.addEventListener('statechange',()=>{if(worker.state==='installed'&&navigator.serviceWorker.controller)showUpdateReady()})};
       if(reg.installing)watch(reg.installing);
       reg.addEventListener('updatefound',()=>watch(reg.installing));
@@ -33,7 +33,8 @@ let pageScrollLocked=false,lockedPageScrollY=0;
 let membersLoading=false;
 let noticePollTimer=null,currentPage='segnalazioni',markAvvisiAfterLoad=false;
 const PRIMARY_PAGES=['segnalazioni','incontri','bacheca'];
-let pagerState={ready:false,programmatic:false,targetPage:'',previousPage:'',onSettled:null,settleTimer:null,suppressScroll:false};
+let pagerState={ready:false,programmatic:false,targetPage:'',previousPage:'',onSettled:null,settleTimer:null,suppressScroll:false,scrolling:false,scrollRaf:0,pendingScrollLeft:0,previewPage:'segnalazioni'};
+let pagerMetrics={anchors:[0,0,0],heights:[1,1,1]};
 let pagerResizeObserver=null;
 let memberSheetDrag={active:false,dragging:false,startY:0,lastY:0,lastT:0,delta:0,scrollEl:null};
 let DEMO_SEGNALAZIONI=[
@@ -449,27 +450,69 @@ function isMobilePager(){return window.innerWidth<=700&&!!$('page-viewport')&&!!
 function pagerIndex(id){return PRIMARY_PAGES.indexOf(id)}
 function pagerPage(index){return document.getElementById('page-'+PRIMARY_PAGES[index])}
 function pagerWidth(){return Math.max(1,$('page-viewport')?.clientWidth||document.documentElement.clientWidth||window.innerWidth||1)}
-function pagerPageHeight(index){const page=pagerPage(index);return page?Math.max(1,Math.ceil(page.getBoundingClientRect().height)):1}
+function refreshPagerMetrics(){
+  const pages=PRIMARY_PAGES.map((_,i)=>pagerPage(i));
+  if(pages.some(p=>!p))return;
+  pagerMetrics.anchors=pages.map(p=>Math.max(0,p.offsetLeft||0));
+  pagerMetrics.heights=pages.map((p,i)=>{
+    const h=Math.ceil(p.getBoundingClientRect().height||p.scrollHeight||pagerMetrics.heights[i]||1);
+    return Math.max(1,h);
+  });
+}
+function pagerOffset(index){const v=pagerMetrics.anchors[index];if(Number.isFinite(v))return v;return Math.max(0,index)*pagerWidth()}
+function pagerPageHeight(index){return Math.max(1,Number(pagerMetrics.heights[index]||1))}
+function pagerProgressForLeft(left){
+  const a=pagerMetrics.anchors,max=PRIMARY_PAGES.length-1,x=Math.max(0,Number(left)||0);
+  if(!a.length||max<1)return 0;
+  if(x<=a[0])return 0;
+  for(let i=0;i<max;i++){
+    const from=Number(a[i]||0),to=Number(a[i+1]||from+pagerWidth());
+    if(x<=to){const span=Math.max(1,to-from);return i+Math.max(0,Math.min(1,(x-from)/span))}
+  }
+  return max;
+}
+function nearestPagerIndex(left){return Math.max(0,Math.min(PRIMARY_PAGES.length-1,Math.round(pagerProgressForLeft(left))))}
 function setNavSelection(id){document.querySelectorAll('.nav-wrap button[data-page]').forEach(b=>{const active=b.dataset.page===id;b.classList.toggle('active',active);if(active)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current')})}
-function setPageSelection(id){document.querySelectorAll('.page').forEach(p=>{const active=p.id==='page-'+id;p.classList.toggle('active',active);p.setAttribute('aria-hidden',active?'false':'true');try{p.inert=!active}catch(_){}});setNavSelection(id)}
+function setPageSelection(id){const mobilePager=isMobilePager()&&pagerState.ready;document.querySelectorAll('.page').forEach(p=>{const active=p.id==='page-'+id;p.classList.toggle('active',active);p.setAttribute('aria-hidden',active?'false':'true');try{p.inert=!active}catch(_){}});setNavSelection(id);if(mobilePager)pagerState.previewPage=id}
 function navIndicatorMetrics(progress){const nav=document.querySelector('.nav-wrap'),buttons=nav?[...nav.querySelectorAll('button[data-page]')]:[];if(!nav||!buttons.length)return null;const p=Math.max(0,Math.min(buttons.length-1,progress)),lo=Math.floor(p),hi=Math.ceil(p),t=p-lo,a=buttons[lo],b=buttons[hi]||a;return{x:a.offsetLeft+(b.offsetLeft-a.offsetLeft)*t,w:a.offsetWidth+(b.offsetWidth-a.offsetWidth)*t}}
 function setNavIndicatorProgress(progress){const indicator=$('nav-indicator'),m=navIndicatorMetrics(progress);if(!indicator||!m)return;indicator.style.width=m.w+'px';indicator.style.transform=`translate3d(${m.x}px,0,0)`}
 function updateNavIndicator(id,animate=true){const indicator=$('nav-indicator'),idx=pagerIndex(id);if(!indicator||idx<0)return;if(!animate)indicator.classList.add('no-transition');else indicator.classList.remove('no-transition');setNavIndicatorProgress(idx);if(!animate)requestAnimationFrame(()=>requestAnimationFrame(()=>indicator.classList.remove('no-transition')))}
-function setPagerHeight(index,animate=true){const viewport=$('page-viewport');if(!viewport||!isMobilePager())return;if(!animate)viewport.classList.add('height-no-transition');else viewport.classList.remove('height-no-transition');viewport.style.height=pagerPageHeight(index)+'px';if(!animate)requestAnimationFrame(()=>requestAnimationFrame(()=>viewport.classList.remove('height-no-transition')))}
-function setPagerHeightForProgress(progress){const viewport=$('page-viewport');if(!viewport||!isMobilePager())return;const max=PRIMARY_PAGES.length-1,p=Math.max(0,Math.min(max,progress)),lo=Math.floor(p),hi=Math.ceil(p),h=Math.max(pagerPageHeight(lo),pagerPageHeight(hi));viewport.classList.add('height-no-transition');viewport.style.height=h+'px'}
-function syncPagerLayout(animate=false){const viewport=$('page-viewport'),track=$('page-track');if(!viewport||!track)return;const idx=Math.max(0,pagerIndex(currentPage));if(!isMobilePager()){pagerState.ready=false;pagerState.suppressScroll=true;viewport.classList.remove('pager-ready','height-no-transition');viewport.style.height='';viewport.scrollLeft=0;track.style.transform='';setPageSelection(currentPage);requestAnimationFrame(()=>{pagerState.suppressScroll=false;updateNavIndicator(currentPage,false)});return}pagerState.ready=true;viewport.classList.add('pager-ready');pagerState.suppressScroll=true;const left=idx*pagerWidth();if(animate&&'scrollTo'in viewport)viewport.scrollTo({left,behavior:'smooth'});else viewport.scrollLeft=left;setPagerHeight(idx,false);requestAnimationFrame(()=>{pagerState.suppressScroll=false;updateNavIndicator(currentPage,false)})}
+function setPagerHeight(index,animate=true){const viewport=$('page-viewport');if(!viewport||!isMobilePager())return;const h=pagerPageHeight(index);if(!animate)viewport.classList.add('height-no-transition');else viewport.classList.remove('height-no-transition');if(Math.abs((parseFloat(viewport.style.height)||0)-h)>.5)viewport.style.height=h+'px';if(!animate)requestAnimationFrame(()=>requestAnimationFrame(()=>viewport.classList.remove('height-no-transition')))}
+function setPagerHeightForProgress(progress){const viewport=$('page-viewport');if(!viewport||!isMobilePager())return;const max=PRIMARY_PAGES.length-1,p=Math.max(0,Math.min(max,progress)),lo=Math.floor(p),hi=Math.ceil(p),h=Math.max(pagerPageHeight(lo),pagerPageHeight(hi));viewport.classList.add('height-no-transition');if(Math.abs((parseFloat(viewport.style.height)||0)-h)>.5)viewport.style.height=h+'px'}
+function syncPagerLayout(animate=false){
+  const viewport=$('page-viewport'),track=$('page-track');if(!viewport||!track)return;
+  const idx=Math.max(0,pagerIndex(currentPage));
+  if(!isMobilePager()){
+    pagerState.ready=false;pagerState.suppressScroll=true;pagerState.scrolling=false;
+    viewport.classList.remove('pager-ready','height-no-transition','pager-scrolling');viewport.style.height='';viewport.scrollLeft=0;track.style.transform='';
+    setPageSelection(currentPage);requestAnimationFrame(()=>{pagerState.suppressScroll=false;updateNavIndicator(currentPage,false)});return;
+  }
+  pagerState.ready=true;viewport.classList.add('pager-ready');pagerState.suppressScroll=true;
+  refreshPagerMetrics();
+  const left=pagerOffset(idx);
+  if(animate&&'scrollTo'in viewport)viewport.scrollTo({left,behavior:'smooth'});else viewport.scrollLeft=left;
+  setPagerHeight(idx,false);pagerState.previewPage=currentPage;
+  requestAnimationFrame(()=>{pagerState.suppressScroll=false;updateNavIndicator(currentPage,false)})
+}
 function preparePageEnter(id){if(id==='bacheca'){if(!avvisiLoadedOnce)loadAvvisi(false,true);else{renderAvvisi();markAvvisiSeen()}}}
 function cleanupPageLeave(previous,id){if(previous==='incontri'&&id!=='incontri'){openMeetingCardId='';openPanels={};if(currentUser&&$('incontri-list'))renderIncontri()}}
 function clearPagerSettleTimer(){if(pagerState.settleTimer){clearTimeout(pagerState.settleTimer);pagerState.settleTimer=null}}
-function commitPagerPage(id,previous,onSettled){currentPage=id;setPageSelection(id);preparePageEnter(id);cleanupPageLeave(previous,id);setPagerHeight(Math.max(0,pagerIndex(id)),true);const indicator=$('nav-indicator');if(indicator)indicator.classList.remove('no-transition');updateNavIndicator(id,true);pagerState.programmatic=false;pagerState.targetPage='';pagerState.previousPage='';pagerState.onSettled=null;if(typeof onSettled==='function')onSettled()}
+function commitPagerPage(id,previous,onSettled){
+  currentPage=id;setPageSelection(id);preparePageEnter(id);cleanupPageLeave(previous,id);
+  pagerState.scrolling=false;$('page-viewport')?.classList.remove('pager-scrolling');setPagerHeight(Math.max(0,pagerIndex(id)),true);
+  const indicator=$('nav-indicator');if(indicator)indicator.classList.remove('no-transition');updateNavIndicator(id,true);
+  pagerState.programmatic=false;pagerState.targetPage='';pagerState.previousPage='';pagerState.onSettled=null;pagerState.previewPage=id;
+  if(typeof onSettled==='function')onSettled()
+}
 function settlePagerScroll(){
   clearPagerSettleTimer();if(!isMobilePager()||!pagerState.ready)return;
-  const viewport=$('page-viewport'),w=pagerWidth(),idx=Math.max(0,Math.min(PRIMARY_PAGES.length-1,Math.round(viewport.scrollLeft/w))),exact=idx*w;
-  if(Math.abs(viewport.scrollLeft-exact)>2){viewport.scrollTo({left:exact,behavior:'smooth'});pagerState.settleTimer=setTimeout(settlePagerScroll,130);return}
-  const id=PRIMARY_PAGES[idx],previous=pagerState.programmatic?(pagerState.previousPage||currentPage):currentPage,onSettled=pagerState.programmatic?pagerState.onSettled:null;
-  if(id!==currentPage||pagerState.programmatic)commitPagerPage(id,previous,onSettled);else{setPageSelection(id);setPagerHeight(idx,true);updateNavIndicator(id,true)}
+  const viewport=$('page-viewport'),idx=nearestPagerIndex(viewport.scrollLeft),id=PRIMARY_PAGES[idx];
+  const previous=pagerState.programmatic?(pagerState.previousPage||currentPage):currentPage;
+  const onSettled=pagerState.programmatic?pagerState.onSettled:null;
+  if(id!==currentPage||pagerState.programmatic)commitPagerPage(id,previous,onSettled);
+  else{pagerState.scrolling=false;viewport.classList.remove('pager-scrolling');setPageSelection(id);setPagerHeight(idx,true);updateNavIndicator(id,true)}
 }
-function schedulePagerSettle(delay=95){clearPagerSettleTimer();pagerState.settleTimer=setTimeout(settlePagerScroll,delay)}
+function schedulePagerSettle(delay=180){clearPagerSettleTimer();pagerState.settleTimer=setTimeout(settlePagerScroll,delay)}
 function showPage(id,options={}){
   if(!PRIMARY_PAGES.includes(id))return;
   if(id===currentPage&&!pagerState.programmatic){if(typeof options.onSettled==='function')options.onSettled();return}
@@ -477,21 +520,36 @@ function showPage(id,options={}){
     const previous=currentPage;currentPage=id;setPageSelection(id);preparePageEnter(id);cleanupPageLeave(previous,id);updateNavIndicator(id,true);closeMobileMenu();if(typeof options.onSettled==='function')options.onSettled();return;
   }
   const viewport=$('page-viewport'),target=pagerIndex(id),previous=currentPage;
-  pagerState.programmatic=true;pagerState.targetPage=id;pagerState.previousPage=previous;pagerState.onSettled=typeof options.onSettled==='function'?options.onSettled:null;
-  setNavSelection(id);preparePageEnter(id);closeMobileMenu();
-  viewport.scrollTo({left:target*pagerWidth(),behavior:'smooth'});schedulePagerSettle(420);
+  refreshPagerMetrics();clearPagerSettleTimer();
+  pagerState.programmatic=true;pagerState.targetPage=id;pagerState.previousPage=previous;pagerState.onSettled=typeof options.onSettled==='function'?options.onSettled:null;pagerState.scrolling=true;
+  viewport.classList.add('pager-scrolling');setNavSelection(id);preparePageEnter(id);closeMobileMenu();
+  viewport.scrollTo({left:pagerOffset(target),behavior:'smooth'});
+  if(!('onscrollend'in viewport))schedulePagerSettle(520);
 }
 function setupPagePager(){
   const viewport=$('page-viewport');if(!viewport)return;
+  const supportsScrollEnd='onscrollend'in viewport;
   viewport.addEventListener('scroll',()=>{
     if(!isMobilePager()||!pagerState.ready||pagerState.suppressScroll)return;
-    const progress=viewport.scrollLeft/pagerWidth(),indicator=$('nav-indicator');if(indicator)indicator.classList.add('no-transition');setNavIndicatorProgress(progress);setPagerHeightForProgress(progress);schedulePagerSettle(110);
+    pagerState.pendingScrollLeft=viewport.scrollLeft;pagerState.scrolling=true;viewport.classList.add('pager-scrolling');
+    if(!pagerState.scrollRaf)pagerState.scrollRaf=requestAnimationFrame(()=>{
+      pagerState.scrollRaf=0;if(!isMobilePager()||pagerState.suppressScroll)return;
+      const progress=pagerProgressForLeft(pagerState.pendingScrollLeft),indicator=$('nav-indicator');
+      if(indicator)indicator.classList.add('no-transition');setNavIndicatorProgress(progress);setPagerHeightForProgress(progress);
+      if(!pagerState.programmatic){const preview=PRIMARY_PAGES[Math.max(0,Math.min(PRIMARY_PAGES.length-1,Math.round(progress)))];if(preview&&preview!==pagerState.previewPage)setPageSelection(preview)}
+    });
+    if(!supportsScrollEnd)schedulePagerSettle(230);
   },{passive:true});
-  if('onscrollend'in viewport)viewport.addEventListener('scrollend',()=>{if(!pagerState.suppressScroll)settlePagerScroll()},{passive:true});
-  viewport.addEventListener('touchend',()=>{if(isMobilePager())schedulePagerSettle(120)},{passive:true});
-  if('ResizeObserver'in window){pagerResizeObserver=new ResizeObserver(()=>{if(isMobilePager()&&pagerState.ready&&!pagerState.programmatic)setPagerHeight(Math.max(0,pagerIndex(currentPage)),false)});document.querySelectorAll('.page').forEach(p=>pagerResizeObserver.observe(p))}
+  if(supportsScrollEnd)viewport.addEventListener('scrollend',()=>{if(!pagerState.suppressScroll)settlePagerScroll()},{passive:true});
+  viewport.addEventListener('pointerdown',()=>{if(!isMobilePager())return;clearPagerSettleTimer();if(pagerState.programmatic){pagerState.programmatic=false;pagerState.targetPage='';pagerState.onSettled=null}}, {passive:true});
+  if('ResizeObserver'in window){
+    pagerResizeObserver=new ResizeObserver(entries=>{
+      entries.forEach(entry=>{const idx=PRIMARY_PAGES.findIndex(id=>entry.target.id==='page-'+id);if(idx<0)return;const box=entry.borderBoxSize&&entry.borderBoxSize[0];const h=Math.ceil((box&&box.blockSize)||entry.contentRect.height||entry.target.scrollHeight||1);pagerMetrics.heights[idx]=Math.max(1,h)});
+      if(isMobilePager()&&pagerState.ready&&!pagerState.scrolling&&!pagerState.programmatic)setPagerHeight(Math.max(0,pagerIndex(currentPage)),false)
+    });
+    document.querySelectorAll('.page').forEach(p=>pagerResizeObserver.observe(p))
+  }
 }
-
 function toggleMobileMenu(){return}
 function closeMobileMenu(){return}
 function setNetworkState(){const offline=!navigator.onLine;$('network-banner').classList.toggle('visible',offline)}
