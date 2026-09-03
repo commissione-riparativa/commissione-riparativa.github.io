@@ -242,3 +242,16 @@ Solo il coordinatore vede il comando `Elimina`.
 - doppio controllo sul membro corrente dopo il caricamento dell'elenco membri;
 - pulsante Gestione membri e icona mobile riallineati allo stato reale del ruolo;
 - cache PWA aggiornata a v38.
+
+## v39 — Design system OpenDesign adattato
+
+- introdotti `DESIGN.md` e `tokens.css` come contratto visivo del progetto;
+- `style.css` consolidato: rimossi gli strati di override delle versioni precedenti;
+- nessuna modifica alle API Google Apps Script o alla logica dati;
+- segnalazioni desktop rese coerenti con il linguaggio delle card mobile;
+- nuova gerarchia per filtri, card, incontri, Bacheca e modali;
+- stati `Nuova`, `In corso`, `Conclusa` distinti per colore, bordo e accento;
+- focus da tastiera, loading, errori e success uniformati;
+- layout desktop esteso fino a 1080 px, tablet dedicato e mobile mantenuto card-first;
+- pager/swipe mobile preservato con pillola sincronizzata;
+- PWA aggiornata alla v39.

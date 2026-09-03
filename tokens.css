@@ -1,0 +1,88 @@
+:root{
+  color-scheme:light;
+
+  /* Identità */
+  --gr-bg:#F4F6F3;
+  --gr-surface:#FFFEFC;
+  --gr-surface-raised:#FFFFFF;
+  --gr-surface-muted:#EEF2EE;
+  --gr-surface-soft:#F8FAF7;
+  --gr-ink:#172A23;
+  --gr-ink-2:#46564F;
+  --gr-muted:#738079;
+  --gr-faint:#939C97;
+  --gr-border:#DDE4DE;
+  --gr-border-strong:#C9D4CC;
+
+  /* Accento e semantica */
+  --gr-primary:#1D8F69;
+  --gr-primary-hover:#167657;
+  --gr-primary-strong:#125E47;
+  --gr-primary-soft:#E6F4EE;
+  --gr-primary-ring:rgba(29,143,105,.22);
+
+  --gr-new:#B53632;
+  --gr-new-soft:#FBECEA;
+  --gr-new-border:#E9B6B1;
+  --gr-progress:#8B6200;
+  --gr-progress-soft:#FFF1BC;
+  --gr-progress-border:#E3C35E;
+  --gr-closed:#17745A;
+  --gr-closed-soft:#E3F3EC;
+  --gr-closed-border:#A9D7C5;
+
+  --gr-students:#2769A8;
+  --gr-students-soft:#EAF2FB;
+  --gr-adults:#72547B;
+  --gr-adults-soft:#F2EBF4;
+  --gr-both:#28756B;
+  --gr-both-soft:#E8F3F0;
+
+  --gr-danger:#B8322E;
+  --gr-danger-hover:#982A27;
+  --gr-danger-soft:#FCEBE9;
+  --gr-warning:#93630A;
+  --gr-warning-soft:#FFF4D8;
+  --gr-success:#16795A;
+  --gr-success-soft:#E4F4EC;
+  --gr-info:#296C9E;
+  --gr-info-soft:#EAF3FA;
+
+  /* Tipografia */
+  --gr-font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --gr-text-xs:.75rem;
+  --gr-text-sm:.8125rem;
+  --gr-text-md:.9375rem;
+  --gr-text-lg:1.0625rem;
+  --gr-text-xl:1.25rem;
+  --gr-text-2xl:1.625rem;
+  --gr-leading-tight:1.22;
+  --gr-leading:1.5;
+
+  /* Ritmo 4/8 px */
+  --gr-space-1:4px;
+  --gr-space-2:8px;
+  --gr-space-3:12px;
+  --gr-space-4:16px;
+  --gr-space-5:20px;
+  --gr-space-6:24px;
+  --gr-space-8:32px;
+  --gr-space-10:40px;
+
+  /* Forme */
+  --gr-radius-sm:8px;
+  --gr-radius-md:12px;
+  --gr-radius-lg:16px;
+  --gr-radius-xl:20px;
+  --gr-radius-pill:999px;
+
+  /* Elevazione sobria */
+  --gr-shadow-xs:0 1px 2px rgba(23,42,35,.035);
+  --gr-shadow-sm:0 4px 14px rgba(23,42,35,.045);
+  --gr-shadow-md:0 14px 38px rgba(23,42,35,.09);
+  --gr-shadow-modal:0 24px 70px rgba(18,34,28,.18);
+
+  --gr-container:1080px;
+  --gr-control:42px;
+  --gr-transition:180ms cubic-bezier(.2,.72,.28,1);
+}
