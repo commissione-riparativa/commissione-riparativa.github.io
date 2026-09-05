@@ -3,7 +3,7 @@ function registerServiceWorker(){
   if(!('serviceWorker' in navigator))return;
   window.addEventListener('load',()=>{
     const hadController=!!navigator.serviceWorker.controller;
-    navigator.serviceWorker.register('./sw.js?v=38').then(reg=>{
+    navigator.serviceWorker.register('./sw.js?v=41').then(reg=>{
       const watch=worker=>{if(!worker)return;worker.addEventListener('statechange',()=>{if(worker.state==='installed'&&navigator.serviceWorker.controller)showUpdateReady()})};
       if(reg.installing)watch(reg.installing);
       reg.addEventListener('updatefound',()=>watch(reg.installing));

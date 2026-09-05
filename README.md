@@ -242,3 +242,10 @@ Solo il coordinatore vede il comando `Elimina`.
 - doppio controllo sul membro corrente dopo il caricamento dell'elenco membri;
 - pulsante Gestione membri e icona mobile riallineati allo stato reale del ruolo;
 - cache PWA aggiornata a v38.
+
+
+## v41 – rifiniture mobile
+- Intestazione smartphone più compatta.
+- Gestione membri ed Esci spostati in alto a destra come icone.
+- Segnalazioni mobile più compatte, con meno spazio prima dei filtri e tra le schede.
+- Cache e riferimenti PWA allineati alla versione 41.

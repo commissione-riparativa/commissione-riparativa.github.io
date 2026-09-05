@@ -1,11 +1,11 @@
-const CACHE_NAME = 'giustizia-riparativa-pwa-v21-pager-v41-redesign';
+const CACHE_NAME = 'giustizia-riparativa-v41-mobile-compact';
 
 const APP_SHELL = [
   './',
   './index.html',
   './style.css?v=41',
-  './app.js?v=38',
-  './manifest.webmanifest?v=39',
+  './app.js?v=41',
+  './manifest.webmanifest?v=41',
   './icons/bilancia-192-v2.png',
   './icons/bilancia-512-v2.png',
   './icons/apple-touch-bilancia-v2.png',
