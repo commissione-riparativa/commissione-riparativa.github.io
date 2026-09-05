@@ -7,7 +7,7 @@
 <meta name="referrer" content="no-referrer">
 <meta name="theme-color" content="#f2f5f1">
 <title>Giustizia Riparativa</title>
-<link rel="stylesheet" href="style.css?v=42">
+<link rel="stylesheet" href="style.css?v=40">
 <link rel="manifest" href="manifest.webmanifest?v=39">
 <link rel="icon" href="icons/favicon-bilancia-v2.png" type="image/png">
 <link rel="apple-touch-icon" href="icons/apple-touch-bilancia-v2.png">
@@ -45,17 +45,10 @@
   </defs>
 </svg>
 <div id="login-screen" class="visible" data-od-id="login-screen">
-  <div class="login-layout">
-  <section class="login-intro" data-od-id="login-intro" aria-label="Il progetto">
-    <p class="eyebrow">Commissione scolastica</p>
-    <h2>Ogni percorso<br>inizia dall’ascolto.</h2>
-    <p>Uno spazio condiviso per accogliere le segnalazioni, incontrarsi e prendersi cura delle relazioni a scuola.</p>
-    <div class="intro-principles"><span>Ascolto</span><span>Responsabilità</span><span>Dialogo</span></div>
-  </section>
   <div class="login-card">
     <div class="brand-mark"><svg class="icon" aria-hidden="true"><use href="#i-restorative"></use></svg></div>
-    <h1>Entra nella commissione</h1>
-    <p class="sub">Giustizia Riparativa · Area riservata</p>
+    <h1>Giustizia Riparativa</h1>
+    <p class="sub">Area della commissione scolastica</p>
 
     <div id="login-restore-step" hidden>
       <div class="loading-state" style="min-height:150px;padding:24px 0 8px;">
@@ -66,7 +59,7 @@
 
     <div id="login-email-step">
       <label class="login-label" for="login-email">Email scolastica</label>
-      <input class="login-input" type="email" id="login-email" autocomplete="email" inputmode="email" aria-describedby="login-email-error" placeholder="nome.cognome@scuola.it">
+      <input class="login-input" type="email" id="login-email" autocomplete="email" inputmode="email" placeholder="nome.cognome@scuola.it">
       <label class="remember-row" for="remember-device">
         <input type="checkbox" id="remember-device" checked>
         <span><strong>Ricordami su questo dispositivo</strong><small>Disattiva questa opzione se stai usando un computer condiviso.</small></span>
@@ -79,7 +72,7 @@
     <div id="login-code-step" hidden>
       <p class="code-sent-text">Abbiamo inviato un codice a <strong id="code-email-label"></strong>.</p>
       <label class="login-label" for="login-code">Codice di accesso</label>
-      <input class="login-input code-input" type="text" id="login-code" inputmode="numeric" autocomplete="one-time-code" aria-describedby="login-code-error" maxlength="6" pattern="[0-9]{6}" placeholder="000000">
+      <input class="login-input code-input" type="text" id="login-code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" placeholder="000000">
       <p class="login-error" id="login-code-error" role="alert"></p>
       <button class="login-btn" id="verify-code-btn" type="button">Accedi</button>
       <div class="login-secondary-actions">
@@ -90,7 +83,6 @@
   </div>
 </div>
 
-  </div>
 <div id="main-screen">
   <main class="container">
     <header class="header" data-od-id="dashboard-header">
@@ -115,7 +107,6 @@
         <button id="nav-incontri" type="button" data-page="incontri"><svg class="icon" aria-hidden="true"><use href="#i-calendar"></use></svg>Incontri</button>
         <button id="nav-bacheca" type="button" data-page="bacheca"><svg class="icon" aria-hidden="true"><use href="#i-megaphone"></use></svg><span>Bacheca</span><span class="nav-badge" id="avvisi-unread" hidden>0</span></button>
       </nav>
-      <p class="nav-caption">Lo spazio di lavoro della commissione.<br>Ascoltare, incontrarsi, costruire insieme.</p>
     </div>
 
     <div class="page-viewport" id="page-viewport">
