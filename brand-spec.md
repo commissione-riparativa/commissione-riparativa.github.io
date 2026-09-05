@@ -35,7 +35,7 @@ Un sistema scolastico autorevole e accogliente, con gerarchia editoriale e inter
 - Badge: forma pillola, testo esplicito e colore semanticamente ridondante.
 - Navigazione: tre destinazioni laterali su desktop, orizzontali su tablet, barra fissa inferiore su smartphone; target da almeno 56 px.
 - Modali: dialogo centrato su desktop e foglio dal basso su mobile; azioni testuali sempre visibili.
-- Toast e stati: successo verde, errore rosso, informazione blu e attesa ambra; messaggio sempre testuale.
+- Toast e stati: successo verde, errore rosso, informazione blu e attesa blu petrolio; messaggio sempre testuale. Il precedente ocra è sostituito da oklch(0.45 0.08 220), con superficie oklch(0.95 0.02 220); i nomi tecnici dei token restano invariati per compatibilità.
 - Loading ed empty state: icona, titolo e istruzione; nessuna informazione affidata alla sola animazione.
 - Disabled: opacità ridotta e cursore coerente; hover e active non modificano la leggibilità del testo.
 - Reduced motion: animazioni e transizioni ridotte a un intervallo impercettibile.
